@@ -1,0 +1,26 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+
+.ag-header, .ag-advanced-filter-header {
+    background-color: #155dfc;
+    /* border-bottom: var(--ag-borders-critical) var(--ag-border-color); */
+}
+.ag-header-cell-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+    color: white;
+    text-transform: uppercase;
+}
+.ag-pinned-left-header {
+    border-right: none;
+}
+.ag-pinned-right-header {
+    border-left: none;
+}
+.ag-root-wrapper {
+    border-radius: 10px;
+    border: var(--ag-borders) var(--ag-border-color);
+}
