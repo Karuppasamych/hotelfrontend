@@ -1,5 +1,8 @@
 import { UtensilsCrossed, CheckCircle, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../../assets/pandianHotel.jpeg';
+import logoWhite from '../../assets/MPH_Logo_White.png'
 import { Navigation } from './Navigation';
 
 interface CommonHeaderProps {
@@ -9,6 +12,14 @@ interface CommonHeaderProps {
 }
 
 export function CommonHeader({ successMessage, showStats = false, statsComponent }: CommonHeaderProps) {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
     <div className="relative overflow-hidden">
       <div className="absolute inset-0">
@@ -32,7 +43,8 @@ export function CommonHeader({ successMessage, showStats = false, statsComponent
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center shadow-lg">
-                <UtensilsCrossed className="size-8 text-white" />
+                {/* <UtensilsCrossed className="size-8 text-white" /> */}
+                <img src={logoWhite} />
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-white drop-shadow-lg">Madurai Pandian Hotel</h1>
@@ -40,11 +52,7 @@ export function CommonHeader({ successMessage, showStats = false, statsComponent
               </div>
             </div>
             <button
-              onClick={() => {
-                if (confirm('Are you sure you want to log out?')) {
-                  // Add logout logic here
-                }
-              }}
+              onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-md hover:shadow-red-500/30 text-sm font-medium"
             >
               <LogOut className="size-4" />

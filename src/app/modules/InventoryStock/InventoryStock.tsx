@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchInventory, addInventoryItem, updateInventoryItem, deleteInventoryItem } from '../../store/slices/inventorySlice';
 import { InventoryItem } from '../../types';
 import { CommonHeader } from '../../components/CommonHeader';
 import { InventoryStats } from './components/InventoryStats';
@@ -7,11 +9,12 @@ import { AgGridDataTable } from '../../components/AgGridDataTable';
 import { createInventoryColumnDefs } from '../../components/InventoryColumnDefs';
 import { AddItemDialog } from '../../components/AddItemDialog';
 import { DeleteConfirmDialog } from '../../components/DeleteConfirmDialog';
-import { useInventory } from '../utils';
 import * as XLSX from 'xlsx';
 
 export default function InventoryStock() {
-  const { inventory, loading, error, addItem, updateItem, deleteItem } = useInventory();
+  const dispatch = useAppDispatch();
+  const { items: inventory, loading, error } = useAppSelector((state) => state.inventory);
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<InventoryItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -20,23 +23,24 @@ export default function InventoryStock() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStockLevel, setSelectedStockLevel] = useState('All');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const categories = ['All', ...Array.from(new Set(Array.isArray(inventory) ? inventory.map((item) => item.category) : []))];
+  
+  const categories = ['All', ...Array.from(new Set(inventory.map((item) => item.category)))];
+
+  useEffect(() => {
+    dispatch(fetchInventory());
+  }, [dispatch]);
 
   const handleAddItem = async (item: Omit<InventoryItem, 'id'> & { id?: string }) => {
-    if (item.id) {
-      const result = await updateItem(item.id, item);
-      if (result.success) {
+    try {
+      if (item.id) {
+        await dispatch(updateInventoryItem({ id: item.id, data: item })).unwrap();
         setSuccessMessage('Item updated successfully!');
       } else {
-        setSuccessMessage('Failed to update item');
-      }
-    } else {
-      const result = await addItem(item);
-      if (result.success) {
+        await dispatch(addInventoryItem(item)).unwrap();
         setSuccessMessage('Item added successfully!');
-      } else {
-        setSuccessMessage('Failed to add item');
       }
+    } catch (error) {
+      setSuccessMessage('Operation failed');
     }
     setEditItem(null);
     setTimeout(() => setSuccessMessage(null), 3000);
@@ -48,7 +52,7 @@ export default function InventoryStock() {
   };
 
   const handleDelete = async (id: string) => {
-    const item = Array.isArray(inventory) ? inventory.find(i => i.id === id) : null;
+    const item = inventory.find(i => i.id === id);
     if (item) {
       setItemToDelete(item);
       setDeleteDialogOpen(true);
@@ -57,10 +61,10 @@ export default function InventoryStock() {
 
   const confirmDelete = async () => {
     if (itemToDelete) {
-      const result = await deleteItem(itemToDelete.id);
-      if (result.success) {
+      try {
+        await dispatch(deleteInventoryItem(itemToDelete.id)).unwrap();
         setSuccessMessage('Item deleted successfully!');
-      } else {
+      } catch (error) {
         setSuccessMessage('Failed to delete item');
       }
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -69,7 +73,7 @@ export default function InventoryStock() {
     setItemToDelete(null);
   };
 
-  const filteredInventory = Array.isArray(inventory) ? inventory.filter((item) => {
+  const filteredInventory = inventory.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
     const matchesStockLevel =
@@ -78,10 +82,10 @@ export default function InventoryStock() {
       (selectedStockLevel === 'Low Stock' && item.quantity_available <= item.minimum_stock && item.quantity_available > 0) ||
       (selectedStockLevel === 'Out of Stock' && item.quantity_available === 0);
     return matchesSearch && matchesCategory && matchesStockLevel;
-  }) : [];
+  });
 
   const handleExport = () => {
-    const worksheet = XLSX.utils.json_to_sheet(Array.isArray(inventory) ? inventory : []);
+    const worksheet = XLSX.utils.json_to_sheet(inventory);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
     XLSX.writeFile(workbook, 'inventory.xlsx');
@@ -121,8 +125,7 @@ export default function InventoryStock() {
           for (const row of jsonData) {
             const item = row as any;
             if (item.product_code && item.name) {
-              const existingItem = Array.isArray(inventory) ? 
-                inventory.find(i => i.product_code === item.product_code) : null;
+              const existingItem = inventory.find(i => i.product_code === item.product_code);
               
               const itemData = {
                 product_code: item.product_code,
@@ -134,16 +137,15 @@ export default function InventoryStock() {
                 minimum_stock: Number(item.minimum_stock) || 0
               };
               
-              let result;
-              if (existingItem) {
-                result = await updateItem(existingItem.id, { ...itemData, id: existingItem.id });
-              } else {
-                result = await addItem(itemData);
-              }
-              
-              if (result.success) {
-                successCount++;
-              } else {
+              try {
+                if (existingItem) {
+                  await dispatch(updateInventoryItem({ id: existingItem.id, data: { ...itemData, id: existingItem.id } })).unwrap();
+                  successCount++;
+                } else {
+                  await dispatch(addInventoryItem(itemData)).unwrap();
+                  successCount++;
+                }
+              } catch (error) {
                 errorCount++;
               }
             }
@@ -196,7 +198,7 @@ export default function InventoryStock() {
       <CommonHeader 
         successMessage={successMessage}
         showStats={true}
-        statsComponent={<InventoryStats inventory={Array.isArray(inventory) ? inventory : []} />}
+        statsComponent={<InventoryStats inventory={inventory} />}
       />
 
       <div className="max-w-7xl mx-auto p-6">
