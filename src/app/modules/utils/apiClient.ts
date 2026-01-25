@@ -1,6 +1,9 @@
-// const API_BASE_URL = 'http://localhost:5000/api';
-// const API_BASE_URL = '/api';
-const API_BASE_URL = 'http://staging.72.62.249.29.nip.io/api';
+// Use environment variable or fallback to relative path
+const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
+
+// For local development: http://localhost:5000/api
+// For production: /api (uses reverse proxy)
+
 
 export interface ApiResponse<T> {
   success: boolean;
