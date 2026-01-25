@@ -1,6 +1,6 @@
 // const API_BASE_URL = 'http://localhost:5000/api';
-const API_BASE_URL = '/api';
-// const API_BASE_URL = 'http://staging.72.62.249.29.nip.io/api';
+// const API_BASE_URL = '/api';
+const API_BASE_URL = 'http://staging.72.62.249.29.nip.io/api';
 
 export interface ApiResponse<T> {
   success: boolean;
