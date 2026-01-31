@@ -95,7 +95,7 @@ export const createInventoryColumnDefs = (
       pinned: 'left',
       cellRenderer: ProductCodeCellRenderer,
       sortable: true,
-      filter: true
+      filter: false
     },
     {
       headerName: 'Item Name',
@@ -103,7 +103,7 @@ export const createInventoryColumnDefs = (
       width: 200,
       cellRenderer: ItemNameCellRenderer,
       sortable: true,
-      filter: true
+      filter: false
     },
     {
       headerName: 'Category',
@@ -111,7 +111,7 @@ export const createInventoryColumnDefs = (
       width: 120,
       cellRenderer: CategoryCellRenderer,
       sortable: true,
-      filter: true
+      filter: false
     },
     {
       headerName: 'Available Stock',
@@ -120,7 +120,8 @@ export const createInventoryColumnDefs = (
       type: 'numericColumn',
       cellStyle: { textAlign: 'center' },
       sortable: true,
-      filter: 'agNumberColumnFilter'
+      filter: false,
+      // filter: 'agNumberColumnFilter'
     },
     {
       headerName: 'Unit',
@@ -128,7 +129,7 @@ export const createInventoryColumnDefs = (
       width: 80,
       cellStyle: { textAlign: 'center' },
       sortable: true,
-      filter: true
+      filter: false
     },
     {
       headerName: 'Price/Unit',
@@ -138,7 +139,9 @@ export const createInventoryColumnDefs = (
       cellRenderer: PriceCellRenderer,
       cellStyle: { textAlign: 'right' },
       sortable: true,
-      filter: 'agNumberColumnFilter'
+      // filter: 'agNumberColumnFilter'
+      filter: false,
+      // filter: 'agNumberColumnFilter'
     },
     {
       headerName: 'Total Value',
@@ -154,7 +157,8 @@ export const createInventoryColumnDefs = (
         const totalA = (quantityA || 0) * (priceA || 0);
         const totalB = (quantityB || 0) * (priceB || 0);
         return totalA - totalB;
-      }
+      },
+      filter:false
     },
     {
       headerName: 'Min. Stock',
@@ -163,7 +167,8 @@ export const createInventoryColumnDefs = (
       type: 'numericColumn',
       cellStyle: { textAlign: 'right' },
       sortable: true,
-      filter: 'agNumberColumnFilter'
+      // filter: 'agNumberColumnFilter'
+      filter: false
     },
     {
       headerName: 'Status',
@@ -176,7 +181,8 @@ export const createInventoryColumnDefs = (
         const statusB = getStockStatus(nodeB.data.quantity_available, nodeB.data.minimum_stock);
         const statusOrder = { out: 0, low: 1, good: 2 };
         return statusOrder[statusA] - statusOrder[statusB];
-      }
+      },
+      filter:false
     },
     {
       headerName: 'Actions',

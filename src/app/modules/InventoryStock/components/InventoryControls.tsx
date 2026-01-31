@@ -72,11 +72,6 @@ export function InventoryControls({
           Get Template
         </Button>
         
-        <Button onClick={onExport} variant="success">
-          <Download className="size-4" />
-          Export
-        </Button>
-        
         <FileInput
           onChange={onImport}
           accept=".xlsx, .xls"
@@ -85,6 +80,12 @@ export function InventoryControls({
           <Upload className="size-4" />
           Import
         </FileInput>
+
+        <Button onClick={onExport} variant="success">
+          <Download className="size-4" />
+          Export
+        </Button>
+        
       </div>
     </div>
   );

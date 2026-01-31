@@ -1,5 +1,5 @@
 // Use environment variable or fallback to relative path
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || '/api';
+const API_BASE_URL = ((import.meta as any).env?.VITE_API_URL) || '/api';
 
 // For local development: http://localhost:5000/api
 // For production: /api (uses reverse proxy)

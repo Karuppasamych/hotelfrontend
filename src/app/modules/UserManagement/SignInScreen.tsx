@@ -167,19 +167,21 @@ export function SignInScreen() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full">
-                  Sign In
-                </Button>
+                <div className="flex justify-center">
+                  <Button type="submit" className="w-1/5 text-center px-4">
+                    Sign In
+                  </Button>
+                </div>
               </form>
 
-              <div className="mt-6 text-center">
+              {/* <div className="mt-6 text-center">
                 <p className="text-gray-600">
                   Don't have an account?{" "}
                   <button className="text-blue-600 hover:text-blue-700 transition-colors">
                     Contact Administrator
                   </button>
                 </p>
-              </div>
+              </div> */}
             </CardContent>
           </Card>
 

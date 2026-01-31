@@ -56,7 +56,7 @@ export function AgGridDataTable<T = any>({
     resizable: true,
     sortable: true,
     filter: true,
-    floatingFilter: true,
+    floatingFilter: false,
     minWidth: 100
   };
 
