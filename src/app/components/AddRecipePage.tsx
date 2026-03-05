@@ -105,7 +105,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
       cookTime,
       servings,
       difficulty,
-      ingredients: ingredients.filter(ing => ing.name.trim() !== ''),
+      ingredients: ingredients.filter(ing => ing.name.trim() !== '' && ing.quantity.trim() !== ''),
       instructions: instructions.filter(inst => inst.trim() !== ''),
     };
 
@@ -366,6 +366,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
                       value={ingredient.unit}
                       onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
                       className="w-40 px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-green-400 transition-all cursor-pointer bg-white"
+                      required
                     >
                       <option value="">Select Unit</option>
                       <option value="cup">Cup(s)</option>

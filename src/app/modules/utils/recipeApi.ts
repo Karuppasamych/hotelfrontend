@@ -20,6 +20,19 @@ export interface Recipe {
   instructions: string[];
 }
 
+export interface CalculatorRecipe {
+  id: string;
+  name: string;
+  category: string;
+  cuisine: string;
+  servings: string;
+  ingredients: {
+    ingredientId: string;
+    amount: number;
+    unit?: string;
+  }[];
+}
+
 export const recipeApi = {
   // Get all recipes
   getAll: (): Promise<ApiResponse<Recipe[]>> => {
@@ -44,5 +57,10 @@ export const recipeApi = {
   // Delete recipe
   delete: (id: number): Promise<ApiResponse<{ message: string }>> => {
     return apiClient.delete<{ message: string }>(`/recipes/${id}`);
+  },
+
+  // Get recipes for calculator
+  getForCalculator: (): Promise<ApiResponse<CalculatorRecipe[]>> => {
+    return apiClient.get<CalculatorRecipe[]>('/recipes/calculator');
   },
 };
