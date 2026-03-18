@@ -1,4 +1,4 @@
-import { UtensilsCrossed, CheckCircle, LogOut } from 'lucide-react';
+import { UtensilsCrossed, CheckCircle, LogOut, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../../assets/pandianHotel.jpeg';
@@ -9,9 +9,11 @@ interface CommonHeaderProps {
   successMessage?: string | null;
   showStats?: boolean;
   statsComponent?: React.ReactNode;
+  orderHistoryStats?: boolean;
+  orderHistoryStatsData?:any
 }
 
-export function CommonHeader({ successMessage, showStats = false, statsComponent }: CommonHeaderProps) {
+export function CommonHeader({ successMessage, showStats = false, statsComponent, orderHistoryStats = false, orderHistoryStatsData }: CommonHeaderProps) {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
@@ -66,6 +68,72 @@ export function CommonHeader({ successMessage, showStats = false, statsComponent
         {showStats && statsComponent && (
           <div className="mb-6">
             {statsComponent}
+          </div>
+        )}
+
+        {orderHistoryStats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 shadow-xl text-white overflow-hidden relative hover:scale-105 hover:-translate-y-1 transition-transform">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative z-10">
+                <p className="text-blue-100 mb-2 font-semibold">Total Orders</p>
+                <p className="text-4xl font-bold">{orderHistoryStatsData.total}</p>
+                <div className="mt-3 flex items-center gap-2 text-blue-100 text-sm">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>For year 2026</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 shadow-xl text-white overflow-hidden relative hover:scale-105 hover:-translate-y-1 transition-transform">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative z-10">
+                <p className="text-green-100 mb-2 font-semibold">Paid Orders</p>
+                <p className="text-4xl font-bold">{orderHistoryStatsData.paid}</p>
+                <div className="mt-3 flex items-center gap-2 text-green-100 text-sm">
+                  <span>✓ Completed</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-6 shadow-xl text-white overflow-hidden relative hover:scale-105 hover:-translate-y-1 transition-transform">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative z-10">
+                <p className="text-red-100 mb-2 font-semibold">Cancelled</p>
+                <p className="text-4xl font-bold">{orderHistoryStatsData.cancelled}</p>
+                <div className="mt-3 flex items-center gap-2 text-red-100 text-sm">
+                  <span>✗ Cancelled</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl p-6 shadow-xl text-white overflow-hidden relative hover:scale-105 hover:-translate-y-1 transition-transform">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative z-10">
+                <p className="text-orange-100 mb-2 font-semibold">Total Revenue</p>
+                <p className="text-4xl font-bold">
+                  ₹{orderHistoryStatsData.totalRevenue.toLocaleString('en-IN')}
+                </p>
+                <div className="mt-3 flex items-center gap-2 text-orange-100 text-sm">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>For year 2026</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 shadow-xl text-white overflow-hidden relative hover:scale-105 hover:-translate-y-1 transition-transform">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
+              <div className="relative z-10">
+                <p className="text-purple-100 mb-2 font-semibold">Monthly Revenue</p>
+                <p className="text-4xl font-bold">
+                  ₹{orderHistoryStatsData.monthlyRevenue.toLocaleString('en-IN')}
+                </p>
+                <div className="mt-3 flex items-center gap-2 text-purple-100 text-sm">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>{new Date().toLocaleString('en-IN', { month: 'long' })}</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

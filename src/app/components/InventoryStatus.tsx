@@ -1,7 +1,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { Dish, Ingredient } from '../modules/RecipeCalculatory/mockData';
-import { ShoppingCart, Check, ArrowRight, FileSpreadsheet, FileText, X, Plus, Trash2, AlertCircle, ChefHat } from 'lucide-react';
+import { ShoppingCart, Check, ArrowRight, FileSpreadsheet, FileText, X, Plus, Trash2, AlertCircle, ChefHat, Search } from 'lucide-react';
+import { purchaseListApi } from '../modules/utils/purchaseListApi';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 // import { v4 as uuidv4 } from 'uuid';
@@ -29,6 +30,8 @@ interface CustomItem {
   name: string;
   quantity: number;
   unit: string;
+  inStock: number;
+  required: number;
 }
 
 export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes, inventory, onConfirm, date }) => {
@@ -80,18 +83,67 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
     };
   }, [selectedDishes, inventory]);
 
-  const handleAddCustomItem = () => {
+  const [nameSearch, setNameSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedInventoryId, setSelectedInventoryId] = useState<string | null>(null);
+
+  const filteredInventory = useMemo(() => {
+    if (!nameSearch.trim()) return inventory;
+    return inventory.filter(item => item.name.toLowerCase().includes(nameSearch.toLowerCase()));
+  }, [nameSearch, inventory]);
+
+  const handleSelectInventoryItem = (item: Ingredient) => {
+    setNewItemName(item.name);
+    setNewItemUnit(item.unit);
+    setSelectedInventoryId(String(item.id));
+    setNameSearch(item.name);
+    setShowDropdown(false);
+  };
+
+  const handleNameInputChange = (value: string) => {
+    setNameSearch(value);
+    setNewItemName(value);
+    setSelectedInventoryId(null);
+    setShowDropdown(true);
+  };
+
+  const handleAddCustomItem = async () => {
     if (newItemName && newItemQuantity) {
-      const newItem: CustomItem = {
-        id: "uuidv4()",
-        name: newItemName,
-        quantity: parseFloat(newItemQuantity),
-        unit: newItemUnit
-      };
-      setCustomItems([...customItems, newItem]);
+      const qty = parseFloat(newItemQuantity);
+      const matchedItem = inventory.find(i => i.name.toLowerCase() === newItemName.toLowerCase());
+      const inStock = matchedItem ? parseFloat(String(matchedItem.stock)) : 0;
+      console.log('Purchase item debug:', { qty, inStock, matchedItem: matchedItem?.name, toBuyGreaterThanStock: qty > inStock });
+      const required = qty > inStock ? qty : 0;
+
+      try {
+        const response = await purchaseListApi.create({
+          item_name: newItemName,
+          quantity: qty,
+          unit: newItemUnit,
+          date
+        });
+
+        const itemId = (response.data as any)?.id?.toString() || Date.now().toString();
+
+        const newItem: CustomItem = {
+          id: itemId,
+          name: newItemName,
+          quantity: qty,
+          unit: newItemUnit,
+          inStock,
+          required
+        };
+        setCustomItems([...customItems, newItem]);
+        toast.success(matchedItem ? 'Item added to purchase list' : 'New item added to inventory & purchase list');
+      } catch {
+        toast.error('Failed to save purchase item');
+      }
+
       setNewItemName('');
       setNewItemQuantity('');
       setNewItemUnit('kg');
+      setNameSearch('');
+      setSelectedInventoryId(null);
       setIsAddingItem(false);
     }
   };
@@ -114,8 +166,8 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
       name: item.name,
       toPurchase: item.quantity.toFixed(2),
       unit: item.unit,
-      inStock: '-',
-      required: '-',
+      inStock: item.inStock.toFixed(2),
+      required: item.required > 0 ? item.required.toFixed(2) : 'Sufficient',
       isCustom: true
     }));
 
@@ -131,10 +183,10 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
     const allItems = getExportData();
     const data = allItems.map(item => ({
       'Ingredient': item.isCustom ? `${item.name} (Manual)` : item.name,
-      'To Purchase': Number(item.toPurchase),
+      'To Buy': Number(item.toPurchase),
       'Unit': item.unit,
-      'Current Stock': item.isCustom ? '-' : Number(item.inStock),
-      'Total Required': item.isCustom ? '-' : Number(item.required)
+      'In Stock': isNaN(Number(item.inStock)) ? item.inStock : Number(item.inStock),
+      'Required': isNaN(Number(item.required)) ? item.required : Number(item.required)
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -242,8 +294,7 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
                         </td>
                         <td></td>
                       </tr>
-                    ))}
-                    
+                    ))} 
                     {/* Custom Items */}
                     {customItems.map((item) => (
                       <tr key={item.id} className="border-b border-stone-100 last:border-0 bg-blue-50/30 hover:bg-blue-50/60">
@@ -254,8 +305,16 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
                         <td className="px-4 py-3 text-right font-bold text-blue-600">
                           {item.quantity.toFixed(2)} <span className="text-xs font-normal text-stone-400">{item.unit}</span>
                         </td>
-                        <td className="px-4 py-3 text-right text-stone-400">-</td>
-                        <td className="px-4 py-3 text-right text-stone-400">-</td>
+                        <td className="px-4 py-3 text-right text-stone-500">
+                          {item.inStock.toFixed(2)} <span className="text-xs font-normal text-stone-400">{item.unit}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold">
+                          {item.required > 0 ? (
+                            <span className="text-rose-600">{item.required.toFixed(2)} <span className="text-xs font-normal text-stone-400">{item.unit}</span></span>
+                          ) : (
+                            <span className="text-emerald-600 text-xs">Sufficient</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right">
                           <button 
                             onClick={() => handleRemoveCustomItem(item.id)}
@@ -282,14 +341,42 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
                   </button>
                 ) : (
                   <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
-                    <input
-                      type="text"
-                      placeholder="Item Name"
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      className="flex-1 px-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      autoFocus
-                    />
+                    <div className="relative flex-1">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                        <input
+                          type="text"
+                          placeholder="Search or type new item..."
+                          value={nameSearch}
+                          onChange={(e) => handleNameInputChange(e.target.value)}
+                          onFocus={() => setShowDropdown(true)}
+                          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                          className="w-full pl-8 pr-3 py-2 text-sm border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          autoFocus
+                        />
+                      </div>
+                      {showDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-stone-200 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                          {filteredInventory.length > 0 ? (
+                            filteredInventory.map(item => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onMouseDown={() => handleSelectInventoryItem(item)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 flex justify-between items-center"
+                              >
+                                <span className="font-medium text-stone-800">{item.name}</span>
+                                <span className="text-xs text-stone-400">{parseFloat(String(item.stock)).toFixed(1)} {item.unit}</span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-stone-500">
+                              No match — <span className="font-semibold text-emerald-600">"{nameSearch}"</span> will be added as new item
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <input
                       type="number"
                       placeholder="Qty"
@@ -317,7 +404,7 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
                       <Check className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => setIsAddingItem(false)}
+                      onClick={() => { setIsAddingItem(false); setNameSearch(''); setShowDropdown(false); setSelectedInventoryId(null); }}
                       className="px-3 py-2 bg-white border border-stone-300 text-stone-500 rounded-md hover:bg-stone-50 hover:text-stone-700"
                     >
                       <X className="h-4 w-4" />

@@ -9,8 +9,9 @@ import InventoryStock from './modules/InventoryStock/InventoryStock';
 import ChefRecipe from './modules/ChefRecipe/ChefRecipe';
 import RecipeCalculatory from './modules/RecipeCalculatory/RecipeCalculatory';
 import UserManagement from './modules/UserManagement/UserManagement';
-import Billing from './modules/Billing/Billing';
 import PurchaseList from './modules/PurchaseList/PurchaseList';
+import { BillingDashboard } from './modules/Billing/BillingDashboard';
+import OrderHistory from './modules/OrderHistory/OrderHistory';
 
 export default function AppRouter() {
   return (
@@ -25,8 +26,9 @@ export default function AppRouter() {
             <Route path="/recipes" element={<ProtectedRoute><ChefRecipe /></ProtectedRoute>} />
             <Route path="/calculator" element={<ProtectedRoute><RecipeCalculatory /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
-            <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+            <Route path="/billing" element={<ProtectedRoute><BillingDashboard /></ProtectedRoute>} />
             <Route path="/purchases" element={<ProtectedRoute><PurchaseList /></ProtectedRoute>} />
+            <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
           </Routes>
         </Router>
       </AuthProvider>
