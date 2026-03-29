@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, XCircle, Clock, ChefHat, Package, Sparkles, Star } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, ChefHat, Package, Sparkles, Star, Trash2 } from 'lucide-react';
 import { InventoryItem } from '@/app/types';
 
 interface Ingredient {
@@ -18,6 +18,7 @@ export interface Recipe {
   cookTime: string;
   servings?: string;
   difficulty?: string;
+  price?: number;
   ingredients: Ingredient[];
   instructions: string[];
 }
@@ -26,9 +27,10 @@ interface RecipeBookProps {
   recipe: Recipe;
   inventory: InventoryItem[];
   onClick: () => void;
+  onDelete?: (recipeId: string, recipeName: string) => void;
 }
 
-export function RecipeBook({ recipe, inventory, onClick }: RecipeBookProps) {
+export function RecipeBook({ recipe, inventory, onClick, onDelete }: RecipeBookProps) {
   const isIngredientInStock = (ingredientName: string): boolean => {
     const inventoryItem = inventory.find(
       item => item.name.toLowerCase() === ingredientName.toLowerCase()
@@ -89,6 +91,20 @@ export function RecipeBook({ recipe, inventory, onClick }: RecipeBookProps) {
         canMake ? 'hover:shadow-xl hover:shadow-emerald-200/50' : 'hover:shadow-xl hover:shadow-slate-300/50'
       }`}
     >
+      {/* Delete Button */}
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(recipe.id, recipe.name);
+          }}
+          className="absolute top-2 left-2 z-10 p-1.5 bg-white/90 hover:bg-red-50 border border-gray-200 hover:border-red-300 rounded-lg shadow-sm transition-all"
+          title="Delete recipe"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+        </button>
+      )}
+
       {/* Decorative Corner Bookmark */}
       {canMake && (
         <div className="absolute -top-1 -right-1 z-10">

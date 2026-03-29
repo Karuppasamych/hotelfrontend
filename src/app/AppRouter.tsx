@@ -12,12 +12,15 @@ import UserManagement from './modules/UserManagement/UserManagement';
 import PurchaseList from './modules/PurchaseList/PurchaseList';
 import { BillingDashboard } from './modules/Billing/BillingDashboard';
 import OrderHistory from './modules/OrderHistory/OrderHistory';
+import Kitchen from './modules/Kitchen/Kitchen';
+import { Toaster } from 'sonner';
 
 export default function AppRouter() {
   return (
     <Provider store={store}>
       <AuthProvider>
         <Router>
+          <Toaster position="top-center" richColors />
           <Routes>
             <Route path="/login" element={<SignInScreen />} />
             <Route path="/" element={<Navigate to="/inventory" replace />} />
@@ -29,6 +32,7 @@ export default function AppRouter() {
             <Route path="/billing" element={<ProtectedRoute><BillingDashboard /></ProtectedRoute>} />
             <Route path="/purchases" element={<ProtectedRoute><PurchaseList /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
+            <Route path="/kitchen" element={<ProtectedRoute><Kitchen /></ProtectedRoute>} />
           </Routes>
         </Router>
       </AuthProvider>

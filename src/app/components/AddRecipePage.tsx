@@ -28,6 +28,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
   const [cookTime, setCookTime] = useState('');
   const [servings, setServings] = useState('');
   const [difficulty, setDifficulty] = useState('Medium');
+  const [price, setPrice] = useState('');
   const [ingredients, setIngredients] = useState<Ingredient[]>([{ name: '', quantity: '', unit: '' }]);
   const [instructions, setInstructions] = useState<string[]>(['']);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -105,6 +106,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
       cookTime,
       servings,
       difficulty,
+      price: parseFloat(price) || 0,
       ingredients: ingredients.filter(ing => ing.name.trim() !== '' && ing.quantity.trim() !== ''),
       instructions: instructions.filter(inst => inst.trim() !== ''),
     };
@@ -124,6 +126,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
     setCookTime('');
     setServings('');
     setDifficulty('Medium');
+    setPrice('');
     setIngredients([{ name: '', quantity: '', unit: '' }]);
     setInstructions(['']);
     setVideoFile(null);
@@ -271,6 +274,21 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
                     <option value="Medium">Medium</option>
                     <option value="Hard">Hard</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Price (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="e.g., 250"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-400 transition-all"
+                    required
+                  />
                 </div>
               </div>
             </section>

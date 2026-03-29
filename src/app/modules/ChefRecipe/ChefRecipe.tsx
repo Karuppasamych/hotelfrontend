@@ -1,7 +1,7 @@
 import { InventoryItem } from '@/app/types';
 import { CommonHeader } from '../../components/CommonHeader';
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, CheckCircle2, ChefHat, ChevronDown, ChevronLeft, ChevronRight, Filter, Plus, Search, Utensils, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, ChefHat, ChevronDown, ChevronLeft, ChevronRight, Filter, Plus, Search, Trash2, Utensils, X } from 'lucide-react';
 import { InventoryManager } from '@/app/components/InventoryManager';
 import { AddCuisineManager } from '@/app/components/AddCuisineManager';
 import { RecipeBook, Recipe } from '@/app/components/RecipeBook';
@@ -53,7 +53,9 @@ export default function ChefRecipe() {
   const [cuisinePage, setCuisinePage] = useState<Record<string, number>>({});
   const [cuisineSearchQuery, setCuisineSearchQuery] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const [loadedCuisines, setLoadedCuisines] = useState<Set<string>>(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'cuisine' | 'recipe'; id: string; name: string } | null>(null);
   
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -87,6 +89,7 @@ export default function ChefRecipe() {
             cookTime: r.cook_time,
             servings: r.servings,
             difficulty: r.difficulty,
+            price: parseFloat(r.price as any) || 0,
             ingredients: r.ingredients,
             instructions: r.instructions
           }));
@@ -260,6 +263,7 @@ export default function ChefRecipe() {
               cookTime: r.cook_time,
               servings: r.servings,
               difficulty: r.difficulty,
+              price: parseFloat(r.price as any) || 0,
               ingredients: r.ingredients,
               instructions: r.instructions
             }));
@@ -310,17 +314,20 @@ export default function ChefRecipe() {
         };
         setCustomCuisines(prev => [...prev, newCuisine]);
         setSelectedSubCuisines(prev => ({ ...prev, [cuisineName]: 'all' }));
+        setMessageType('success');
         setSuccessMessage(`${cuisineName} cuisine has been successfully added!`);
         setExpandedCuisines(prev => new Set([...prev, cuisineName]));
         setAddCuisineOpen(false);
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
         console.error('API Error:', response.error);
-        setSuccessMessage(`Error: ${response.error || 'Failed to add cuisine'}`);
+        setMessageType('error');
+        setSuccessMessage(response.error || 'Failed to add cuisine');
         setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
       console.error('Exception:', error);
+      setMessageType('error');
       setSuccessMessage('Error adding cuisine. Please try again.');
       setTimeout(() => setSuccessMessage(''), 5000);
     }
@@ -337,16 +344,65 @@ export default function ChefRecipe() {
         setCustomCuisines(prev => prev.map(c => 
           c.id === cuisineId ? { ...c, name: cuisineName, icon: cuisineIcon } : c
         ));
+        setMessageType('success');
         setSuccessMessage(`${cuisineName} cuisine has been successfully updated!`);
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setSuccessMessage(`Error: ${response.error || 'Failed to update cuisine'}`);
+        setMessageType('error');
+        setSuccessMessage(response.error || 'Failed to update cuisine');
         setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
+      setMessageType('error');
       setSuccessMessage('Error updating cuisine. Please try again.');
       setTimeout(() => setSuccessMessage(''), 5000);
     }
+  };
+
+  const handleDeleteCuisine = async (cuisineId: string, cuisineName: string) => {
+    setDeleteConfirm({ type: 'cuisine', id: cuisineId, name: cuisineName });
+  };
+
+  const handleDeleteRecipe = async (recipeId: string, recipeName: string) => {
+    setDeleteConfirm({ type: 'recipe', id: recipeId, name: recipeName });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    try {
+      if (deleteConfirm.type === 'cuisine') {
+        const response = await cuisineApi.delete(Number(deleteConfirm.id));
+        if (response.success) {
+          setCustomCuisines(prev => prev.filter(c => c.id !== deleteConfirm.id));
+          setUserRecipes(prev => prev.filter(r => r.cuisine !== deleteConfirm.name));
+          setMessageType('success');
+          setSuccessMessage(`${deleteConfirm.name} cuisine deleted successfully!`);
+        } else {
+          setMessageType('error');
+          setSuccessMessage(response.error || 'Failed to delete cuisine');
+        }
+      } else {
+        const response = await recipeApi.delete(Number(deleteConfirm.id));
+        if (response.success) {
+          setUserRecipes(prev => prev.filter(r => r.id !== deleteConfirm.id));
+          setMessageType('success');
+          setSuccessMessage(`${deleteConfirm.name} recipe deleted successfully!`);
+        } else {
+          setMessageType('error');
+          setSuccessMessage(response.error || 'Failed to delete recipe');
+        }
+      }
+      // Refresh inventory to reflect restored quantities
+      const inventoryResponse = await inventoryApi.getAll();
+      if (inventoryResponse.success && inventoryResponse.data) {
+        setInventory(inventoryResponse.data);
+      }
+    } catch (error) {
+      setMessageType('error');
+      setSuccessMessage(`Error deleting ${deleteConfirm.type}. Please try again.`);
+    }
+    setDeleteConfirm(null);
+    setTimeout(() => setSuccessMessage(''), 5000);
   };
 
   const handleAddRecipe = async (recipe: any) => {
@@ -368,6 +424,7 @@ export default function ChefRecipe() {
         cook_time: recipe.cookTime,
         servings: recipe.servings,
         difficulty: recipe.difficulty,
+        price: recipe.price || 0,
         ingredients: recipe.ingredients.map((ing: any) => ({
           name: ing.name,
           quantity: ing.quantity,
@@ -379,6 +436,7 @@ export default function ChefRecipe() {
       const response = await recipeApi.create(recipeData);
       
       if (response.success) {
+        setMessageType('success');
         // Deduct ingredients from inventory with unit conversion
         for (const ing of recipe.ingredients) {
           const item = inventory.find(i => i.name.toLowerCase() === ing.name.toLowerCase());
@@ -435,15 +493,17 @@ export default function ChefRecipe() {
           setInventory(inventoryResponse.data);
         }
 
-        setUserRecipes(prev => [...prev, { ...recipe, id: response.data?.id.toString() || recipe.id }]);
+        setUserRecipes(prev => [...prev, { ...recipe, id: response.data?.id.toString() || recipe.id, price: recipe.price || 0 }]);
         setSuccessMessage(`${recipe.name} has been successfully added!`);
         setTimeout(() => setSuccessMessage(''), 5000);
       } else {
-        setSuccessMessage(`Error: ${response.error || 'Failed to add recipe'}`);
+        setMessageType('error');
+        setSuccessMessage(response.error || 'Failed to add recipe');
         setTimeout(() => setSuccessMessage(''), 5000);
       }
     } catch (error) {
       console.error('Error adding recipe:', error);
+      setMessageType('error');
       setSuccessMessage('Error adding recipe. Please try again.');
       setTimeout(() => setSuccessMessage(''), 5000);
     }
@@ -750,7 +810,7 @@ export default function ChefRecipe() {
             </div>
             <input
               type="text"
-              placeholder="Search for recipes, ingredients, or cuisines..."
+              placeholder="Search for recipes or cuisines..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-11 pr-5 py-2.5 rounded-xl border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 bg-white shadow-md text-gray-800 placeholder-gray-400 transition-all text-sm"
@@ -797,18 +857,28 @@ export default function ChefRecipe() {
           onEditCuisine={(cuisineId, cuisineName, cuisineIcon) => {
             handleEditCuisine(cuisineId, cuisineName, cuisineIcon);
           }}
+          onDeleteCuisine={handleDeleteCuisine}
+          onMessage={(msg, type) => {
+            setMessageType(type);
+            setSuccessMessage(msg);
+            setTimeout(() => setSuccessMessage(''), 5000);
+          }}
         />
       </div>
 
       {/* Success Message */}
       {successMessage && (
         <div className="max-w-7xl mx-auto px-4 mt-6">
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 flex items-center gap-3 shadow-lg animate-in fade-in slide-in-from-top duration-500">
-            <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
-            <p className="text-green-800 font-semibold flex-1">{successMessage}</p>
+          <div className={`border-2 rounded-xl p-4 flex items-center gap-3 shadow-lg animate-in fade-in slide-in-from-top duration-500 ${
+            messageType === 'error'
+              ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-300'
+              : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300'
+          }`}>
+            <CheckCircle2 className={`w-6 h-6 flex-shrink-0 ${messageType === 'error' ? 'text-red-600' : 'text-green-600'}`} />
+            <p className={`font-semibold flex-1 ${messageType === 'error' ? 'text-red-800' : 'text-green-800'}`}>{successMessage}</p>
             <button
               onClick={() => setSuccessMessage('')}
-              className="text-green-600 hover:text-green-800 transition-colors"
+              className={`transition-colors ${messageType === 'error' ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}`}
             >
               <X className="w-5 h-5" />
             </button>
@@ -867,6 +937,19 @@ export default function ChefRecipe() {
                           </span>
                           <span className="text-xs text-green-600 font-medium">Ready</span>
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCuisine(
+                              customCuisines.find(c => c.name === group.cuisine)?.id || '',
+                              group.cuisine
+                            );
+                          }}
+                          className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
+                          title="Delete cuisine"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </button>
                         <ChevronDown 
                           className={`w-6 h-6 text-indigo-500 transition-transform duration-300 ${
                             isExpanded ? 'rotate-180' : ''
@@ -1024,6 +1107,7 @@ export default function ChefRecipe() {
                                       recipe={recipe}
                                       inventory={inventory}
                                       onClick={() => setSelectedRecipe(recipe)}
+                                      onDelete={handleDeleteRecipe}
                                     />
                                   ))}
                                 </div>
@@ -1079,6 +1163,7 @@ export default function ChefRecipe() {
                     recipe={recipe}
                     inventory={inventory}
                     onClick={() => setSelectedRecipe(recipe)}
+                    onDelete={handleDeleteRecipe}
                   />
                 ))}
               </div>
@@ -1118,6 +1203,7 @@ export default function ChefRecipe() {
                 cookTime: r.cook_time,
                 servings: r.servings,
                 difficulty: r.difficulty,
+                price: parseFloat(r.price as any) || 0,
                 ingredients: r.ingredients,
                 instructions: r.instructions
               }));
@@ -1143,6 +1229,44 @@ export default function ChefRecipe() {
         subCuisines={subCuisines}
         preSelectedCuisine={preSelectedCuisine}
       />
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="p-6 border-b flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-full">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Delete {deleteConfirm.type === 'cuisine' ? 'Cuisine' : 'Recipe'}
+              </h2>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 mb-2">Are you sure you want to delete this {deleteConfirm.type}?</p>
+              <p className="font-medium text-gray-900 bg-gray-50 p-3 rounded-lg">{deleteConfirm.name}</p>
+              {deleteConfirm.type === 'cuisine' && (
+                <p className="text-sm text-red-600 mt-3">⚠️ All recipes under this cuisine will also be removed.</p>
+              )}
+              <p className="text-sm text-red-500 mt-2">This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3 p-6 pt-0">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-lg font-medium"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );

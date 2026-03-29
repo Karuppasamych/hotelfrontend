@@ -1,5 +1,8 @@
-import { Minus, Plus, X, Trash2, ShoppingCart, FileText } from 'lucide-react';
+import { useState } from 'react';
+import { Minus, Plus, X, Trash2, ShoppingCart, FileText, AlertTriangle } from 'lucide-react';
 import { OrderItem } from './BillingDashboard';
+import { billingApi } from '../utils/billingApi';
+import { toast } from 'sonner';
 
 interface OrderSummaryProps {
   orders: OrderItem[];
@@ -8,11 +11,13 @@ interface OrderSummaryProps {
   onClearOrder: () => void;
   onCheckout: () => void;
   onSaveDraft: () => void;
+  tableNumber?: string;
+  orderType?: string;
 }
 
-const CGST_RATE = 0.025; // 2.5% CGST
-const SGST_RATE = 0.025; // 2.5% SGST
-const SERVICE_CHARGE_RATE = 0.05; // 5% Service Charge
+const CGST_RATE = 0.025;
+const SGST_RATE = 0.025;
+const SERVICE_CHARGE_RATE = 0.05;
 
 export function OrderSummary({ 
   orders, 
@@ -20,13 +25,45 @@ export function OrderSummary({
   onRemoveItem, 
   onClearOrder,
   onCheckout,
-  onSaveDraft
+  onSaveDraft,
+  tableNumber,
+  orderType
 }: OrderSummaryProps) {
+  const [cancelConfirm, setCancelConfirm] = useState<OrderItem | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+
   const subtotal = orders.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const serviceCharge = subtotal * SERVICE_CHARGE_RATE;
   const cgst = subtotal * CGST_RATE;
   const sgst = subtotal * SGST_RATE;
   const total = subtotal + serviceCharge + cgst + sgst;
+
+  const handleCancelItem = async () => {
+    if (!cancelConfirm) return;
+    setCancelling(true);
+    try {
+      const response = await billingApi.cancelItem({
+        item_name: cancelConfirm.name,
+        quantity: cancelConfirm.quantity,
+        price: cancelConfirm.price,
+        reason: cancelReason || undefined,
+        table_number: tableNumber || undefined,
+        order_type: orderType || undefined,
+      });
+      if ((response as any).success !== false) {
+        onRemoveItem(cancelConfirm.id);
+        toast.success(`${cancelConfirm.name} cancelled and recorded`);
+      } else {
+        toast.error('Failed to record cancellation');
+      }
+    } catch {
+      toast.error('Error cancelling item');
+    }
+    setCancelling(false);
+    setCancelConfirm(null);
+    setCancelReason('');
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-200">
@@ -80,8 +117,9 @@ export function OrderSummary({
                     <Plus className="w-4 h-4 text-orange-600" />
                   </button>
                   <button
-                    onClick={() => onRemoveItem(item.id)}
+                    onClick={() => setCancelConfirm(item)}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                    title="Cancel item"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -128,6 +166,59 @@ export function OrderSummary({
             Generate Bill
           </button>
         </>
+      )}
+
+      {/* Cancel Confirmation Dialog */}
+      {cancelConfirm && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="p-6 border-b flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">Cancel Item</h2>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-600 mb-3">Are you sure you want to cancel this item?</p>
+              <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                <p className="font-bold text-gray-900">{cancelConfirm.name}</p>
+                <p className="text-sm text-gray-500">Qty: {cancelConfirm.quantity} × ₹{cancelConfirm.price.toFixed(2)} = <span className="font-bold text-orange-600">₹{(cancelConfirm.price * cancelConfirm.quantity).toFixed(2)}</span></p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason for cancellation (optional)</label>
+                <input
+                  type="text"
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="e.g., Customer changed mind, Out of stock..."
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-400 text-sm"
+                  autoFocus
+                />
+              </div>
+              <p className="text-xs text-red-500 mt-3">This will be recorded in cancellation history.</p>
+            </div>
+            <div className="flex gap-3 p-6 pt-0">
+              <button
+                onClick={() => { setCancelConfirm(null); setCancelReason(''); }}
+                className="flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all font-medium"
+                disabled={cancelling}
+              >
+                Keep Item
+              </button>
+              <button
+                onClick={handleCancelItem}
+                disabled={cancelling}
+                className="flex-1 px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-lg font-medium flex items-center justify-center gap-2"
+              >
+                {cancelling ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Cancel Item'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

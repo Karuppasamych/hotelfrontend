@@ -11,9 +11,10 @@ import { Dish, Ingredient } from '../RecipeCalculatory/mockData';
 import { recipeApi } from '../utils/recipeApi';
 import { inventoryApi } from '../utils/inventoryApi';
 import { confirmedMenuApi } from '../utils/confirmedMenuApi';
+import { ConfirmCookModal } from '../../components/ConfirmCookModal';
 
 import { toast } from 'sonner';
-import { ChefHat } from 'lucide-react';
+import { ChefHat, Trash2 } from 'lucide-react';
 
 
 export default function RecipeCalculatory() {
@@ -25,6 +26,8 @@ export default function RecipeCalculatory() {
   const [activeDishId, setActiveDishId] = useState<string | null>(null);
   const [confirmedMenus, setConfirmedMenus] = useState<ConfirmedMenu[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showConfirmCookModal, setShowConfirmCookModal] = useState(false);
+  const [deleteQueueConfirm, setDeleteQueueConfirm] = useState<{ menuId: string; dishName: string } | null>(null);
   
   // Handlers
   const handleAddDish = (dish: Dish) => {
@@ -49,47 +52,40 @@ export default function RecipeCalculatory() {
 
   const handleConfirmMenu = async () => {
     if (selectedDishes.length === 0) return;
+    setShowConfirmCookModal(true);
+  };
 
+  const handleConfirmWithMealTime = async (data: { meal_time: string; servings: number; is_addon: boolean }) => {
     try {
-      // Check if menu already exists for this date
-      const existingMenu = confirmedMenus.find(m => m.date === selectedDate);
-      
       const menuData = {
         date: selectedDate,
+        meal_time: data.meal_time,
         dishes: selectedDishes.map(item => ({
           dish_id: item.dish.id,
-          servings: item.servings
+          servings: item.servings,
+          is_addon: data.is_addon
         }))
       };
 
-      let response;
-      if (existingMenu) {
-        // Update existing menu
-        response = await confirmedMenuApi.update(parseInt(existingMenu.id), menuData);
-      } else {
-        // Create new menu
-        response = await confirmedMenuApi.create(menuData);
-      }
+      const response = await confirmedMenuApi.create(menuData);
       
       if (response.success) {
         const newMenu: ConfirmedMenu = {
-          id: existingMenu?.id || (response.data as any)?.id?.toString() || Date.now().toString(),
+          id: (response.data as any)?.id?.toString() || Date.now().toString(),
           date: selectedDate,
           timestamp: Date.now(),
+          mealTime: data.meal_time,
           dishes: [...selectedDishes]
         };
 
-        if (existingMenu) {
-          setConfirmedMenus(prev => prev.map(m => m.id === existingMenu.id ? newMenu : m));
-        } else {
-          setConfirmedMenus(prev => [...prev, newMenu]);
-        }
-        
+        setConfirmedMenus(prev => [...prev, newMenu]);
         setSelectedDishes([]);
         setActiveDishId(null);
+        setShowConfirmCookModal(false);
         
-        toast.success(existingMenu ? 'Menu Updated!' : 'Menu Confirmed!', {
-          description: `Menu for ${selectedDate} has been ${existingMenu ? 'updated' : 'saved'} successfully.`,
+        const mealLabel = data.is_addon ? 'Add-on (All Time)' : data.meal_time.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+        toast.success('Menu Confirmed!', {
+          description: `Sent to kitchen for ${mealLabel} on ${selectedDate}`,
           icon: <ChefHat className="h-5 w-5" />,
         });
       } else {
@@ -99,9 +95,7 @@ export default function RecipeCalculatory() {
       }
     } catch (error) {
       console.error('Error confirming menu:', error);
-      toast.error('Error confirming menu', {
-        description: 'An unexpected error occurred.'
-      });
+      toast.error('Error confirming menu');
     }
   };
 
@@ -240,8 +234,66 @@ export default function RecipeCalculatory() {
                   date={selectedDate}
                 />
                 
-                <CookingQueue confirmedMenus={confirmedMenus} onEdit={handleEditMenu} />
+                <CookingQueue confirmedMenus={confirmedMenus} onEdit={handleEditMenu} onDeleteMenu={(menuId) => {
+                  const menu = confirmedMenus.find(m => m.id === menuId);
+                  const dishName = menu?.dishes.map(d => d.dish.name).join(', ') || 'this item';
+                  setDeleteQueueConfirm({ menuId, dishName });
+                }} />
               </Layout>
+
+        {/* Confirm Cook Modal */}
+        <ConfirmCookModal
+          isOpen={showConfirmCookModal}
+          recipeName={selectedDishes.map(d => d.dish.name).join(', ')}
+          recipeId={selectedDishes[0]?.dish.id || ''}
+          defaultServings={String(selectedDishes.reduce((sum, d) => sum + d.servings, 0) || 4)}
+          onClose={() => setShowConfirmCookModal(false)}
+          onConfirm={handleConfirmWithMealTime}
+        />
+
+        {/* Delete Queue Confirmation Dialog */}
+        {deleteQueueConfirm && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+              <div className="p-6 border-b flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-full">
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900">Remove from Queue</h2>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-600 mb-2">Are you sure you want to remove this dish from the production queue?</p>
+                <p className="font-medium text-gray-900 bg-gray-50 p-3 rounded-lg">{deleteQueueConfirm.dishName}</p>
+                <p className="text-sm text-red-500 mt-3">This action cannot be undone.</p>
+              </div>
+              <div className="flex gap-3 p-6 pt-0">
+                <button
+                  onClick={() => setDeleteQueueConfirm(null)}
+                  className="flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const response = await confirmedMenuApi.delete(parseInt(deleteQueueConfirm.menuId));
+                      if (response.success) {
+                        setConfirmedMenus(prev => prev.filter(m => m.id !== deleteQueueConfirm.menuId));
+                        toast.success('Removed from production queue');
+                      }
+                    } catch (error) {
+                      console.error('Error deleting menu:', error);
+                    }
+                    setDeleteQueueConfirm(null);
+                  }}
+                  className="flex-1 px-5 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-lg font-medium"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
     </div>

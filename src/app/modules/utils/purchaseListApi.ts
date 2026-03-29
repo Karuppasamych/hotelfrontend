@@ -13,6 +13,10 @@ export const purchaseListApi = {
     return apiClient.get('/purchase-list');
   },
 
+  updateStatus: async (ids: number[], status: string = 'purchased') => {
+    return apiClient.put('/purchase-list/status', { ids, status });
+  },
+
   delete: async (id: number) => {
     return apiClient.delete(`/purchase-list/${id}`);
   }

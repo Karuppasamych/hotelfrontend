@@ -58,4 +58,12 @@ export const billingApi = {
   getByDate: (date: string): Promise<ApiResponse<Bill[]>> => {
     return apiClient.get<Bill[]>(`/billing/date/${date}`);
   },
+
+  cancelItem: (data: { item_name: string; quantity: number; price: number; reason?: string; table_number?: string; order_type?: string }): Promise<ApiResponse<{ id: number }>> => {
+    return apiClient.post('/billing/cancellations', data);
+  },
+
+  getCancellations: (): Promise<ApiResponse<any[]>> => {
+    return apiClient.get('/billing/cancellations');
+  },
 };

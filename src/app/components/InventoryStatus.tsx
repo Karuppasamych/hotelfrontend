@@ -438,11 +438,6 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
             disabled={selectedDishes.length === 0 || !analysis.isFeasible}
             onClick={() => {
               onConfirm();
-              toast.success("Menu confirmed and sent to kitchen!", {
-                description: `Scheduled for ${format(new Date(date), 'PPP')}`,
-                duration: 4000,
-                icon: <ChefHat className="h-5 w-5" />,
-              });
             }}
             className={`
               group flex items-center justify-center gap-2 px-8 py-3 rounded-xl font-bold shadow-md transition-all focus:ring-4

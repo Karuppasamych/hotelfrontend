@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Package, Phone, ShoppingBag, Trash2, ShoppingCart, X, ChevronUp, ChevronDown, FileText, Clock, Search, User } from 'lucide-react';
+import { Plus, Package, Phone, ShoppingBag, Trash2, ShoppingCart, X, ChevronUp, ChevronDown, FileText, Clock, Search, User, Printer } from 'lucide-react';
 import { DraftOrder } from './BillingDashboard';
+import { recipeApi } from '../utils/recipeApi';
+import { kitchenApi } from '../utils/kitchenApi';
+import { toast } from 'sonner';
 
 interface BillingFormProps {
   onAddItems: (items: { name: string; price: number; quantity: number; code?: string }[]) => void;
@@ -26,45 +29,14 @@ interface StagedItem {
   quantity: number;
   code?: string;
   category: string;
-  image?: string;
 }
 
-// Common Indian restaurant items for auto-complete
-const PRODUCT_SUGGESTIONS = [
-  { name: 'Paneer Tikka', price: 180, code: 'P001', category: 'Starters', image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBmb29kJTIwcGFuZWVyJTIwdGlra2F8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Paneer Butter Masala', price: 220, code: 'P002', category: 'Veg Curries', image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBmb29kJTIwcGFuZWVyJTIwdGlra2F8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Dal Makhani', price: 180, code: 'P003', category: 'Veg Curries', image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXR0ZXIlMjBjaGlja2VuJTIwY3Vycnl8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Butter Chicken', price: 280, code: 'P004', category: 'Non-Veg Curries', image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXR0ZXIlMjBjaGlja2VuJTIwY3Vycnl8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Chicken Tikka Masala', price: 260, code: 'P005', category: 'Non-Veg Curries', image: 'https://images.unsplash.com/photo-1727280376746-b89107a5b0df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0YW5kb29yaSUyMGNoaWNrZW58ZW58MXx8fHwxNzY4MTMwMTgyfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Chicken Biryani', price: 250, code: 'P006', category: 'Rice & Biryani', image: 'https://images.unsplash.com/photo-1666190092689-e3968aa0c32c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiaXJ5YW5pJTIwcmljZSUyMGRpc2h8ZW58MXx8fHwxNzY4MDM2MjUzfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Veg Biryani', price: 200, code: 'P007', category: 'Rice & Biryani', image: 'https://images.unsplash.com/photo-1666190092689-e3968aa0c32c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiaXJ5YW5pJTIwcmljZSUyMGRpc2h8ZW58MXx8fHwxNzY4MDM2MjUzfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Mutton Rogan Josh', price: 320, code: 'P008', category: 'Non-Veg Curries', image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXR0ZXIlMjBjaGlja2VuJTIwY3Vycnl8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Palak Paneer', price: 200, code: 'P009', category: 'Veg Curries', image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBmb29kJTIwcGFuZWVyJTIwdGlra2F8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Chana Masala', price: 160, code: 'P010', category: 'Veg Curries', image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXR0ZXIlMjBjaGlja2VuJTIwY3Vycnl8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Fish Curry', price: 300, code: 'P011', category: 'Non-Veg Curries', image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXR0ZXIlMjBjaGlja2VuJTIwY3Vycnl8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Tandoori Chicken', price: 220, code: 'P012', category: 'Starters', image: 'https://images.unsplash.com/photo-1727280376746-b89107a5b0df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0YW5kb29yaSUyMGNoaWNrZW58ZW58MXx8fHwxNzY4MTMwMTgyfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Chicken 65', price: 200, code: 'P013', category: 'Starters', image: 'https://images.unsplash.com/photo-1727280376746-b89107a5b0df?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0YW5kb29yaSUyMGNoaWNrZW58ZW58MXx8fHwxNzY4MTMwMTgyfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Gobi Manchurian', price: 150, code: 'P014', category: 'Starters', image: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBmb29kJTIwcGFuZWVyJTIwdGlra2F8ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Veg Spring Roll', price: 120, code: 'P015', category: 'Starters', image: 'https://images.unsplash.com/photo-1697155836252-d7f969108b5a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzYW1vc2ElMjBpbmRpYW4lMjBzbmFja3xlbnwxfHx8fDE3NjgxMzIxOTB8MA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Samosa', price: 40, code: 'P016', category: 'Starters', image: 'https://images.unsplash.com/photo-1697155836252-d7f969108b5a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzYW1vc2ElMjBpbmRpYW4lMjBzbmFja3xlbnwxfHx8fDE3NjgxMzIxOTB8MA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Butter Naan', price: 50, code: 'P017', category: 'Breads', image: 'https://images.unsplash.com/photo-1697155406014-04dc649b0953?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuYWFuJTIwYnJlYWQlMjBpbmRpYW58ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Garlic Naan', price: 60, code: 'P018', category: 'Breads', image: 'https://images.unsplash.com/photo-1697155406014-04dc649b0953?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuYWFuJTIwYnJlYWQlMjBpbmRpYW58ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Tandoori Roti', price: 30, code: 'P019', category: 'Breads', image: 'https://images.unsplash.com/photo-1697155406014-04dc649b0953?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuYWFuJTIwYnJlYWQlMjBpbmRpYW58ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Lachha Paratha', price: 60, code: 'P020', category: 'Breads', image: 'https://images.unsplash.com/photo-1697155406014-04dc649b0953?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuYWFuJTIwYnJlYWQlMjBpbmRpYW58ZW58MXx8fHwxNzY4MTMyMTg5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Jeera Rice', price: 120, code: 'P021', category: 'Rice & Biryani', image: 'https://images.unsplash.com/photo-1666190092689-e3968aa0c32c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiaXJ5YW5pJTIwcmljZSUyMGRpc2h8ZW58MXx8fHwxNzY4MDM2MjUzfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Steamed Rice', price: 100, code: 'P022', category: 'Rice & Biryani', image: 'https://images.unsplash.com/photo-1666190092689-e3968aa0c32c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiaXJ5YW5pJTIwcmljZSUyMGRpc2h8ZW58MXx8fHwxNzY4MDM2MjUzfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Veg Pulao', price: 150, code: 'P023', category: 'Rice & Biryani', image: 'https://images.unsplash.com/photo-1666190092689-e3968aa0c32c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiaXJ5YW5pJTIwcmljZSUyMGRpc2h8ZW58MXx8fHwxNzY4MDM2MjUzfDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Gulab Jamun', price: 60, code: 'P024', category: 'Desserts', image: 'https://images.unsplash.com/photo-1666190092159-3171cf0fbb12?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBkZXNzZXJ0JTIwZ3VsYWIlMjBqYW11bnxlbnwxfHx8fDE3NjgxMjA1MzB8MA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Rasmalai', price: 80, code: 'P025', category: 'Desserts', image: 'https://images.unsplash.com/photo-1666190092159-3171cf0fbb12?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBkZXNzZXJ0JTIwZ3VsYWIlMjBqYW11bnxlbnwxfHx8fDE3NjgxMjA1MzB8MA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Kulfi', price: 70, code: 'P026', category: 'Desserts', image: 'https://images.unsplash.com/photo-1666190092159-3171cf0fbb12?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBkZXNzZXJ0JTIwZ3VsYWIlMjBqYW11bnxlbnwxfHx8fDE3NjgxMjA1MzB8MA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Gajar Halwa', price: 90, code: 'P027', category: 'Desserts', image: 'https://images.unsplash.com/photo-1666190092159-3171cf0fbb12?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbmRpYW4lMjBkZXNzZXJ0JTIwZ3VsYWIlMjBqYW11bnxlbnwxfHx8fDE3NjgxMjA1MzB8MA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Sweet Lassi', price: 60, code: 'P028', category: 'Beverages', image: 'https://images.unsplash.com/photo-1692620811917-664ebd27a8c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYXNzaSUyMGRyaW5rfGVufDF8fHx8MTc2ODEzMjE5MHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Mango Lassi', price: 80, code: 'P029', category: 'Beverages', image: 'https://images.unsplash.com/photo-1692620811917-664ebd27a8c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYXNzaSUyMGRyaW5rfGVufDF8fHx8MTc2ODEzMjE5MHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Masala Chai', price: 30, code: 'P030', category: 'Beverages', image: 'https://images.unsplash.com/photo-1692620811917-664ebd27a8c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYXNzaSUyMGRyaW5rfGVufDF8fHx8MTc2ODEzMjE5MHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Cold Coffee', price: 70, code: 'P031', category: 'Beverages', image: 'https://images.unsplash.com/photo-1692620811917-664ebd27a8c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYXNzaSUyMGRyaW5rfGVufDF8fHx8MTc2ODEzMjE5MHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Fresh Lime Soda', price: 50, code: 'P032', category: 'Beverages', image: 'https://images.unsplash.com/photo-1692620811917-664ebd27a8c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYXNzaSUyMGRyaW5rfGVufDF8fHx8MTc2ODEzMjE5MHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { name: 'Buttermilk', price: 40, code: 'P033', category: 'Beverages', image: 'https://images.unsplash.com/photo-1692620811917-664ebd27a8c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsYXNzaSUyMGRyaW5rfGVufDF8fHx8MTc2ODEzMjE5MHww&ixlib=rb-4.1.0&q=80&w=1080' },
-];
+interface ProductSuggestion {
+  name: string;
+  price: number;
+  code: string;
+  category: string;
+}
 
 export function BillingForm({ 
   onAddItems,
@@ -86,19 +58,34 @@ export function BillingForm({
   const [productCode, setProductCode] = useState('');
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [selectedImage, setSelectedImage] = useState('');
+
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [suggestions, setSuggestions] = useState<typeof PRODUCT_SUGGESTIONS>([]);
+  const [productSuggestions, setProductSuggestions] = useState<ProductSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [draftSearchQuery, setDraftSearchQuery] = useState('');
+  const [showKOT, setShowKOT] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    recipeApi.getAll().then(response => {
+      const recipes = (response.data as any)?.data || response.data || [];
+      const mapped: ProductSuggestion[] = recipes.map((r: any) => ({
+        name: r.name,
+        price: parseFloat(r.price) || 0,
+        code: `R${String(r.id).padStart(3, '0')}`,
+        category: r.category || 'Uncategorized',
+      }));
+      setProductSuggestions(mapped);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (itemName.trim().length > 0) {
-      const filtered = PRODUCT_SUGGESTIONS.filter(item =>
+      const filtered = productSuggestions.filter(item =>
         item.name.toLowerCase().includes(itemName.toLowerCase())
       );
       setSuggestions(filtered);
@@ -108,13 +95,12 @@ export function BillingForm({
       setShowSuggestions(false);
     }
     setSelectedSuggestionIndex(-1);
-  }, [itemName]);
+  }, [itemName, productSuggestions]);
 
-  const handleSuggestionClick = (suggestion: typeof PRODUCT_SUGGESTIONS[0]) => {
+  const handleSuggestionClick = (suggestion: ProductSuggestion) => {
     setItemName(suggestion.name);
     setPrice(suggestion.price.toString());
     setProductCode(suggestion.code);
-    setSelectedImage(suggestion.image);
     setSelectedCategory(suggestion.category);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
@@ -146,7 +132,7 @@ export function BillingForm({
     e.preventDefault();
     
     if (!itemName.trim() || !price || !quantity) {
-      alert('Please fill all required fields');
+      toast.error('Please fill all required fields');
       return;
     }
 
@@ -154,7 +140,7 @@ export function BillingForm({
     const quantityNum = parseInt(quantity);
 
     if (priceNum <= 0 || quantityNum <= 0) {
-      alert('Price and quantity must be greater than 0');
+      toast.error('Price and quantity must be greater than 0');
       return;
     }
 
@@ -165,7 +151,7 @@ export function BillingForm({
       quantity: quantityNum,
       code: productCode || undefined,
       category: selectedCategory || 'Uncategorized',
-      image: selectedImage || undefined
+
     };
 
     setStagedItems(prev => [...prev, newItem]);
@@ -175,7 +161,6 @@ export function BillingForm({
     setProductCode('');
     setPrice('');
     setQuantity('1');
-    setSelectedImage('');
     setSelectedCategory('');
     setShowSuggestions(false);
     
@@ -189,7 +174,7 @@ export function BillingForm({
 
   const handleAddAllToBill = () => {
     if (stagedItems.length === 0) {
-      alert('Please add at least one product to the staging area');
+      toast.error('Please add at least one product to the staging area');
       return;
     }
 
@@ -294,15 +279,16 @@ export function BillingForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             <div>
               <label htmlFor="tableNumber" className="block text-gray-700 mb-1.5 font-medium text-sm">
-                Table Number
+                Table Number *
               </label>
               <input
                 id="tableNumber"
                 type="text"
                 value={tableNumber}
                 onChange={(e) => onTableNumberChange(e.target.value)}
-                placeholder="Optional"
+                placeholder="Enter table number"
                 className="w-full px-3 py-2 border-2 border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all bg-white transform focus:scale-[1.02] text-sm"
+                required
               />
             </div>
             <div>
@@ -350,7 +336,7 @@ export function BillingForm({
                 }}
                 onFocus={() => {
                   if (itemName.length > 0) {
-                    const filtered = PRODUCT_SUGGESTIONS.filter(item =>
+                    const filtered = productSuggestions.filter(item =>
                       item.name.toLowerCase().includes(itemName.toLowerCase())
                     );
                     setSuggestions(filtered);
@@ -384,11 +370,6 @@ export function BillingForm({
                         index === selectedSuggestionIndex ? 'bg-orange-100 border-l-4 border-l-orange-500' : 'hover:bg-orange-50'
                       }`}
                     >
-                      <img 
-                        src={suggestion.image} 
-                        alt={suggestion.name}
-                        className="w-14 h-14 object-cover rounded-lg shadow-sm"
-                      />
                       <div className="flex-1">
                         <div className="text-gray-900 font-semibold">{suggestion.name}</div>
                         <div className="text-gray-500 text-xs font-mono mt-0.5">{suggestion.code}</div>
@@ -442,9 +423,9 @@ export function BillingForm({
                 step="0.01"
                 min="0"
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                readOnly
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 border-2 border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-orange-400 transition-all font-bold text-lg bg-white shadow-sm"
+                className="w-full px-3 py-2.5 border-2 border-orange-200 rounded-lg font-bold text-lg bg-gray-100 cursor-not-allowed shadow-sm"
               />
             </div>
 
@@ -498,13 +479,6 @@ export function BillingForm({
                 className="bg-white border-2 border-orange-200 rounded-xl p-4 hover:shadow-lg transition-all group animate-scale-in"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
-                {product.image && (
-                  <img 
-                    src={product.image} 
-                    alt={product.name}
-                    className="w-full h-40 object-cover rounded-lg mb-3 shadow-sm transform group-hover:scale-105 transition-transform duration-300"
-                  />
-                )}
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -569,13 +543,49 @@ export function BillingForm({
             ))}
           </div>
 
-          <button
-            onClick={handleAddAllToBill}
-            className="w-full mt-4 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all shadow-lg hover:shadow-xl font-bold flex items-center justify-center gap-2"
-          >
-            <ShoppingCart className="w-5 h-5" />
-            Add All to Order ({stagedItems.length} items)
-          </button>
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={handleAddAllToBill}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all shadow-lg hover:shadow-xl font-bold flex items-center justify-center gap-2"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              Add All to Order ({stagedItems.length} items)
+            </button>
+            <button
+              onClick={async () => {
+                if (stagedItems.length === 0) {
+                  toast.error('No items to generate KOT');
+                  return;
+                }
+                if (orderType === 'dine-in' && !tableNumber.trim()) {
+                  toast.error('Please enter table number for KOT');
+                  return;
+                }
+                try {
+                  const response = await kitchenApi.create({
+                    table_number: tableNumber || undefined,
+                    order_type: orderType,
+                    number_of_persons: numberOfPersons || undefined,
+                    customer_name: customerName || undefined,
+                    mobile_number: mobileNumber || undefined,
+                    items: stagedItems.map(item => ({ name: item.name, quantity: item.quantity, category: item.category })),
+                  });
+                  if (response.success) {
+                    toast.success(`KOT ${(response.data as any)?.orderNumber || ''} sent to kitchen!`);
+                    setShowKOT(true);
+                  } else {
+                    toast.error('Failed to create KOT');
+                  }
+                } catch {
+                  toast.error('Error sending KOT to kitchen');
+                }
+              }}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl font-bold flex items-center justify-center gap-2"
+            >
+              <Printer className="w-5 h-5" />
+              KOT
+            </button>
+          </div>
         </div>
       )}
 
@@ -708,6 +718,105 @@ export function BillingForm({
                   </div>
                 );
               })}
+          </div>
+        </div>
+      )}
+
+      {/* KOT Modal */}
+      {showKOT && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border-2 border-blue-200">
+            {/* KOT Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-white" />
+                <h2 className="text-lg font-bold text-white">Kitchen Order Ticket</h2>
+              </div>
+              <button onClick={() => setShowKOT(false)} className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all">
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+
+            {/* KOT Content */}
+            <div id="kot-print-area" className="p-6">
+              <div className="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
+                <h3 className="text-xl font-bold text-gray-900">KOT</h3>
+                <p className="text-xs text-gray-500 mt-1">{new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+              </div>
+
+              <div className="flex justify-between text-sm mb-4">
+                <div>
+                  {orderType === 'dine-in' && tableNumber && (
+                    <p className="font-bold text-gray-900">Table: <span className="text-blue-600">{tableNumber}</span></p>
+                  )}
+                  {orderType === 'parcel' && (
+                    <p className="font-bold text-gray-900">Type: <span className="text-green-600">Parcel</span></p>
+                  )}
+                </div>
+                {numberOfPersons && <p className="text-gray-600">Persons: <span className="font-bold">{numberOfPersons}</span></p>}
+              </div>
+
+              <div className="border-t-2 border-b-2 border-gray-200 py-2 mb-2">
+                <div className="flex justify-between text-xs font-bold text-gray-500 uppercase">
+                  <span className="flex-1">Item</span>
+                  <span className="w-12 text-center">Qty</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 mb-4">
+                {stagedItems.map((item, idx) => (
+                  <div key={item.id} className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-xs font-bold text-gray-400 w-5">{idx + 1}.</span>
+                      <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                    </div>
+                    <span className="w-12 text-center text-sm font-bold text-blue-600 bg-blue-50 rounded-md py-0.5">{item.quantity}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t-2 border-dashed border-gray-300 pt-3 text-center">
+                <p className="text-xs text-gray-400">Total Items: <span className="font-bold text-gray-700">{stagedItems.reduce((sum, i) => sum + i.quantity, 0)}</span></p>
+              </div>
+            </div>
+
+            {/* KOT Actions */}
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => setShowKOT(false)}
+                className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-all font-semibold"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  const printContent = document.getElementById('kot-print-area');
+                  if (printContent) {
+                    const win = window.open('', '_blank', 'width=350,height=500');
+                    if (win) {
+                      win.document.write(`<html><head><title>KOT</title><style>body{font-family:monospace;padding:10px;font-size:12px}h3{text-align:center;margin:0}p{margin:4px 0}.item{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dotted #ccc}.header{text-align:center;border-bottom:2px dashed #000;padding-bottom:8px;margin-bottom:8px}.footer{border-top:2px dashed #000;padding-top:8px;margin-top:8px;text-align:center}</style></head><body>`);
+                      win.document.write('<div class="header"><h3>KITCHEN ORDER TICKET</h3>');
+                      win.document.write(`<p>${new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>`);
+                      if (orderType === 'dine-in' && tableNumber) win.document.write(`<p><strong>Table: ${tableNumber}</strong></p>`);
+                      if (orderType === 'parcel') win.document.write('<p><strong>PARCEL</strong></p>');
+                      if (numberOfPersons) win.document.write(`<p>Persons: ${numberOfPersons}</p>`);
+                      win.document.write('</div>');
+                      stagedItems.forEach((item, idx) => {
+                        win.document.write(`<div class="item"><span>${idx + 1}. ${item.name}</span><strong>x${item.quantity}</strong></div>`);
+                      });
+                      win.document.write(`<div class="footer"><p>Total Items: ${stagedItems.reduce((sum, i) => sum + i.quantity, 0)}</p></div>`);
+                      win.document.write('</body></html>');
+                      win.document.close();
+                      win.print();
+                    }
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg transition-all font-bold flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                Print KOT
+              </button>
+            </div>
           </div>
         </div>
       )}

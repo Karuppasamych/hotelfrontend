@@ -7,7 +7,8 @@ import {
   Users, 
   Receipt, 
   ShoppingCart,
-  History 
+  History,
+  UtensilsCrossed 
 } from 'lucide-react';
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { path: '/billing', label: 'Billing', icon: Receipt },
   { path: '/purchases', label: 'Purchases', icon: ShoppingCart },
   { path: '/orders', label: 'Order History', icon: History },
+  { path: '/kitchen', label: 'Kitchen', icon: UtensilsCrossed },
 ];
 
 export function Navigation() {

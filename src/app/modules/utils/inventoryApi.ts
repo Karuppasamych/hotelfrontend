@@ -2,6 +2,11 @@ import { InventoryItem } from '../../types';
 import { apiClient, ApiResponse } from './apiClient';
 
 export const inventoryApi = {
+  // Get next product code
+  getNextCode: (): Promise<ApiResponse<{ next_code: string }>> => {
+    return apiClient.get<{ next_code: string }>('/inventory/next-code');
+  },
+
   // Get all inventory items
   getAll: (): Promise<ApiResponse<InventoryItem[]>> => {
     return apiClient.get<InventoryItem[]>('/inventory');

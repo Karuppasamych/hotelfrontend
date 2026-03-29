@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Plus, Globe, X, Sparkles, ChefHat, Utensils, Lightbulb, Edit2, Search } from 'lucide-react';
+import { ChevronDown, Plus, Globe, X, Sparkles, ChefHat, Utensils, Lightbulb, Edit2, Search, Trash2 } from 'lucide-react';
 
 interface Recipe {
   id: string;
@@ -23,9 +23,13 @@ interface AddCuisineManagerProps {
   allRecipes?: Recipe[];
   allCuisines?: Cuisine[];
   onEditCuisine?: (cuisineId: string, cuisineName: string, cuisineIcon: string) => void;
+  onDeleteCuisine?: (cuisineId: string, cuisineName: string) => void;
+  onMessage?: (msg: string, type: 'success' | 'error') => void;
 }
 
-export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRecipe, onEditRecipe, allRecipes, allCuisines, onEditCuisine }: AddCuisineManagerProps) {
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+
+export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRecipe, onEditRecipe, allRecipes, allCuisines, onEditCuisine, onDeleteCuisine, onMessage }: AddCuisineManagerProps) {
   const [newCuisineName, setNewCuisineName] = useState('');
   const [newCuisineIcon, setNewCuisineIcon] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -188,24 +192,31 @@ export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRec
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Cuisine Image *
                       </label>
+                      {newCuisineIcon && (
+                        <div className="mb-2">
+                          <img src={newCuisineIcon} alt="Preview" className="w-20 h-20 rounded-xl object-cover border-2 border-purple-200 shadow-sm" />
+                        </div>
+                      )}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept=".png,.jpg,.jpeg"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => {
-                              setNewCuisineIcon(reader.result as string);
-                            };
-                            reader.readAsDataURL(file);
+                          if (!file) return;
+                          if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+                            onMessage?.('Please upload PNG or JPG format only', 'error');
+                            e.target.value = '';
+                            return;
                           }
+                          const reader = new FileReader();
+                          reader.onloadend = () => setNewCuisineIcon(reader.result as string);
+                          reader.readAsDataURL(file);
                         }}
                         className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-400 transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
-                        required
+                        required={!editingCuisineId}
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Upload an image to represent this cuisine
+                        Accepted formats: PNG, JPG
                       </p>
                     </div>
                     <div className="flex gap-2 pt-2">
@@ -253,14 +264,8 @@ export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRec
                                 return matchesSearch;
                               })
                               .map(cuisine => (
-                                <button
+                                <div
                                   key={cuisine.id}
-                                  onClick={() => {
-                                    setEditingCuisineId(cuisine.id);
-                                    setNewCuisineName(cuisine.name);
-                                    setNewCuisineIcon(cuisine.icon);
-                                    setShowForm(true);
-                                  }}
                                   className="w-full text-left p-3 bg-white hover:bg-purple-50 border-2 border-gray-200 hover:border-purple-400 rounded-lg transition-all group"
                                 >
                                   <div className="flex items-center justify-between">
@@ -274,12 +279,34 @@ export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRec
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <p className="font-semibold text-gray-800 text-sm truncate">{cuisine.name}</p>
-                                        <p className="text-xs text-gray-500">Cuisine Category</p>
+                                        <p className="text-xs text-gray-500">
+                                          {allRecipes?.filter(r => r.cuisine === cuisine.name).length || 0} recipes
+                                        </p>
                                       </div>
                                     </div>
-                                    <Edit2 className="w-4 h-4 text-purple-600 flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                      <button
+                                        onClick={() => {
+                                          setEditingCuisineId(cuisine.id);
+                                          setNewCuisineName(cuisine.name);
+                                          setNewCuisineIcon(cuisine.icon);
+                                          setShowForm(true);
+                                        }}
+                                        className="p-1.5 hover:bg-purple-100 rounded-lg transition-colors"
+                                        title="Edit cuisine"
+                                      >
+                                        <Edit2 className="w-4 h-4 text-purple-600" />
+                                      </button>
+                                      <button
+                                        onClick={() => onDeleteCuisine?.(cuisine.id, cuisine.name)}
+                                        className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
+                                        title="Delete cuisine"
+                                      >
+                                        <Trash2 className="w-4 h-4 text-red-500" />
+                                      </button>
+                                    </div>
                                   </div>
-                                </button>
+                                </div>
                               ))}
                             {allCuisines.filter(cuisine => {
                               if (cuisine.id === 'all') return false;
@@ -304,6 +331,7 @@ export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRec
                 </div>
               </div>
             )}
+
           </div>
         </div>
       )}

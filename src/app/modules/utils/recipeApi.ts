@@ -16,6 +16,7 @@ export interface Recipe {
   cook_time: string;
   servings: string;
   difficulty: string;
+  price?: number;
   ingredients: RecipeIngredient[];
   instructions: string[];
 }

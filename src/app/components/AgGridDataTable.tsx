@@ -12,6 +12,7 @@ interface AgGridDataTableProps<T = any> {
   height?: string | number;
   pagination?: boolean;
   paginationPageSize?: number;
+  paginationPageSizeSelector?: number[];
   rowSelection?: 'single' | 'multiple';
   onGridReady?: (params: { api: GridApi }) => void;
   onRowClicked?: (event: any) => void;
@@ -35,6 +36,7 @@ export function AgGridDataTable<T = any>({
   height = '600px',
   pagination = true,
   paginationPageSize = 5,
+  paginationPageSizeSelector = [5, 10, 20, 50, 100],
   rowSelection = 'multiple',
   onGridReady,
   onRowClicked,
@@ -99,6 +101,7 @@ export function AgGridDataTable<T = any>({
         onSelectionChanged={onSelectionChanged}
         pagination={pagination}
         paginationPageSize={paginationPageSize}
+        paginationPageSizeSelector={paginationPageSizeSelector}
         rowSelection={rowSelection}
         suppressRowClickSelection={suppressRowClickSelection}
         animateRows={animateRows}

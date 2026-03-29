@@ -41,25 +41,11 @@ export function PaymentModal({ orders, onComplete, onCancel }: PaymentModalProps
     }
 
     if (paymentMethod === 'card') {
-      if (!cardNumber || !cardName || !expiryDate || !cvv) {
-        alert('Please fill all card details');
-        return;
-      }
-      if (cardNumber.replace(/\s/g, '').length !== 16) {
-        alert('Please enter a valid 16-digit card number');
-        return;
-      }
+      // Card payment processed via terminal - no field validation needed
     }
 
     if (paymentMethod === 'upi') {
-      if (!upiId) {
-        alert('Please enter UPI ID');
-        return;
-      }
-      if (!upiId.includes('@')) {
-        alert('Please enter a valid UPI ID (e.g., name@upi)');
-        return;
-      }
+      // UPI payment processed via QR scan - no field validation needed
     }
 
     if (paymentMethod === 'cash') {
@@ -101,7 +87,7 @@ export function PaymentModal({ orders, onComplete, onCancel }: PaymentModalProps
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
       <div className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border-2 border-orange-200 animate-scale-in">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b-2 border-orange-200 bg-gradient-to-r from-orange-500 to-amber-500">
@@ -247,73 +233,14 @@ export function PaymentModal({ orders, onComplete, onCancel }: PaymentModalProps
             <div className="space-y-3 bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border-2 border-blue-300 shadow-sm animate-slide-up">
               <div className="bg-blue-200 border-2 border-blue-400 rounded-lg p-2 mb-1">
                 <p className="text-blue-900 text-xs font-semibold flex items-center gap-2">
-                  🔒 Secure Payment - Demo mode for testing
+                  🔒 Secure Payment - Swipe or insert card on terminal
                 </p>
               </div>
-              <div>
-                <label className="block text-gray-900 mb-1.5 font-bold text-sm">Card Number *</label>
-                <input
-                  type="text"
-                  value={cardNumber}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\s/g, '');
-                    if (value.length <= 16 && /^\d*$/.test(value)) {
-                      setCardNumber(formatCardNumber(value));
-                    }
-                  }}
-                  placeholder="1234 5678 9012 3456"
-                  className="w-full px-3 py-2.5 border-2 border-blue-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-base bg-white shadow-sm transition-all transform focus:scale-[1.02]"
-                  disabled={processing}
-                  maxLength={19}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-gray-900 mb-1.5 font-bold text-sm">Cardholder Name *</label>
-                <input
-                  type="text"
-                  value={cardName}
-                  onChange={(e) => setCardName(e.target.value)}
-                  placeholder="Name on card"
-                  className="w-full px-3 py-2.5 border-2 border-blue-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base bg-white shadow-sm transition-all transform focus:scale-[1.02]"
-                  disabled={processing}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-900 mb-1.5 font-bold text-sm">Expiry Date *</label>
-                  <input
-                    type="text"
-                    value={expiryDate}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      if (value.length <= 4) {
-                        setExpiryDate(formatExpiryDate(value));
-                      }
-                    }}
-                    placeholder="MM/YY"
-                    className="w-full px-3 py-2.5 border-2 border-blue-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-base bg-white shadow-sm transition-all transform focus:scale-[1.02]"
-                    disabled={processing}
-                    maxLength={5}
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-900 mb-1.5 font-bold text-sm">CVV *</label>
-                  <input
-                    type="text"
-                    value={cvv}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      if (value.length <= 3) {
-                        setCvv(value);
-                      }
-                    }}
-                    placeholder="123"
-                    className="w-full px-3 py-2.5 border-2 border-blue-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-base bg-white shadow-sm transition-all transform focus:scale-[1.02]"
-                    disabled={processing}
-                    maxLength={3}
-                  />
-                </div>
+              <div className="bg-white border-2 border-blue-300 rounded-lg p-6 text-center">
+                <CreditCard className="w-12 h-12 text-blue-500 mx-auto mb-3" />
+                <p className="text-blue-900 font-bold text-sm">Card Payment</p>
+                <p className="text-blue-600 text-xs mt-1">Amount: <span className="font-bold text-lg">₹{total.toFixed(2)}</span></p>
+                <p className="text-gray-500 text-xs mt-2">Please use the card terminal to process payment</p>
               </div>
             </div>
           )}
@@ -322,28 +249,60 @@ export function PaymentModal({ orders, onComplete, onCancel }: PaymentModalProps
             <div className="space-y-3 bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl border-2 border-purple-300 shadow-sm animate-slide-up">
               <div className="bg-purple-200 border-2 border-purple-400 rounded-lg p-2 mb-1">
                 <p className="text-purple-900 text-xs font-semibold flex items-center gap-2">
-                  🔒 Secure UPI Payment - Demo mode for testing
+                  🔒 Secure UPI Payment - Scan QR to pay
                 </p>
               </div>
-              <div>
-                <label className="block text-gray-900 mb-1.5 font-bold text-sm">UPI ID *</label>
-                <input
-                  type="text"
-                  value={upiId}
-                  onChange={(e) => setUpiId(e.target.value.toLowerCase())}
-                  placeholder="yourname@upi"
-                  className="w-full px-3 py-2.5 border-2 border-purple-400 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-base bg-white shadow-sm transition-all transform focus:scale-[1.02]"
-                  disabled={processing}
-                  autoFocus
-                />
-              </div>
-              <div className="bg-white border-2 border-purple-300 rounded-lg p-3 shadow-sm">
-                <p className="text-gray-900 mb-2 font-bold text-xs">📱 Popular UPI Apps:</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <span className="px-2 py-1.5 bg-purple-100 border border-purple-300 rounded-lg text-xs font-semibold text-purple-900 text-center">Google Pay</span>
-                  <span className="px-2 py-1.5 bg-purple-100 border border-purple-300 rounded-lg text-xs font-semibold text-purple-900 text-center">PhonePe</span>
-                  <span className="px-2 py-1.5 bg-purple-100 border border-purple-300 rounded-lg text-xs font-semibold text-purple-900 text-center">Paytm</span>
-                  <span className="px-2 py-1.5 bg-purple-100 border border-purple-300 rounded-lg text-xs font-semibold text-purple-900 text-center">BHIM</span>
+              <div className="bg-white border-2 border-purple-300 rounded-xl p-4 text-center">
+                <div className="inline-block p-3 bg-white border-2 border-gray-200 rounded-xl shadow-md mb-3">
+                  <svg width="160" height="160" viewBox="0 0 160 160" className="mx-auto">
+                    <rect width="160" height="160" fill="white" />
+                    {/* QR code pattern */}
+                    <rect x="10" y="10" width="40" height="40" fill="black" />
+                    <rect x="15" y="15" width="30" height="30" fill="white" />
+                    <rect x="20" y="20" width="20" height="20" fill="black" />
+                    <rect x="110" y="10" width="40" height="40" fill="black" />
+                    <rect x="115" y="15" width="30" height="30" fill="white" />
+                    <rect x="120" y="20" width="20" height="20" fill="black" />
+                    <rect x="10" y="110" width="40" height="40" fill="black" />
+                    <rect x="15" y="115" width="30" height="30" fill="white" />
+                    <rect x="20" y="120" width="20" height="20" fill="black" />
+                    {/* Center pattern */}
+                    <rect x="60" y="10" width="10" height="10" fill="black" />
+                    <rect x="80" y="10" width="10" height="10" fill="black" />
+                    <rect x="60" y="30" width="10" height="10" fill="black" />
+                    <rect x="80" y="30" width="10" height="10" fill="black" />
+                    <rect x="70" y="20" width="10" height="10" fill="black" />
+                    <rect x="60" y="60" width="10" height="10" fill="black" />
+                    <rect x="80" y="60" width="10" height="10" fill="black" />
+                    <rect x="70" y="70" width="20" height="20" fill="black" />
+                    <rect x="60" y="80" width="10" height="10" fill="black" />
+                    <rect x="90" y="80" width="10" height="10" fill="black" />
+                    <rect x="10" y="60" width="10" height="10" fill="black" />
+                    <rect x="30" y="60" width="10" height="10" fill="black" />
+                    <rect x="10" y="80" width="10" height="10" fill="black" />
+                    <rect x="40" y="70" width="10" height="10" fill="black" />
+                    <rect x="110" y="60" width="10" height="10" fill="black" />
+                    <rect x="130" y="60" width="10" height="10" fill="black" />
+                    <rect x="110" y="80" width="10" height="10" fill="black" />
+                    <rect x="140" y="70" width="10" height="10" fill="black" />
+                    <rect x="60" y="110" width="10" height="10" fill="black" />
+                    <rect x="80" y="110" width="10" height="10" fill="black" />
+                    <rect x="70" y="120" width="10" height="10" fill="black" />
+                    <rect x="110" y="110" width="10" height="10" fill="black" />
+                    <rect x="130" y="110" width="10" height="10" fill="black" />
+                    <rect x="120" y="130" width="10" height="10" fill="black" />
+                    <rect x="140" y="120" width="10" height="10" fill="black" />
+                    <rect x="110" y="140" width="10" height="10" fill="black" />
+                    <rect x="140" y="140" width="10" height="10" fill="black" />
+                  </svg>
+                </div>
+                <p className="text-purple-900 font-bold text-sm">Scan to Pay</p>
+                <p className="text-purple-600 text-xs mt-1">Amount: <span className="font-bold text-lg">₹{total.toFixed(2)}</span></p>
+                <div className="flex justify-center gap-3 mt-3">
+                  <span className="px-2 py-1 bg-purple-100 border border-purple-300 rounded-lg text-[10px] font-semibold text-purple-900">Google Pay</span>
+                  <span className="px-2 py-1 bg-purple-100 border border-purple-300 rounded-lg text-[10px] font-semibold text-purple-900">PhonePe</span>
+                  <span className="px-2 py-1 bg-purple-100 border border-purple-300 rounded-lg text-[10px] font-semibold text-purple-900">Paytm</span>
+                  <span className="px-2 py-1 bg-purple-100 border border-purple-300 rounded-lg text-[10px] font-semibold text-purple-900">BHIM</span>
                 </div>
               </div>
             </div>

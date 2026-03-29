@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Clock, ChefHat, Package, CheckCircle2, XCircle, Sparkles, Play, Upload, Edit2, Save, Plus, Trash2, GripVertical } from 'lucide-react';
+import { X, Clock, ChefHat, Package, CheckCircle2, XCircle, Sparkles, Upload, Edit2, Save, Plus, Trash2, GripVertical } from 'lucide-react';
 import { Recipe } from './RecipeBook';
 import { InventoryItem } from '@/app/types';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
@@ -7,12 +7,14 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { recipeApi } from '../modules/utils/recipeApi';
 import { inventoryApi } from '../modules/utils/inventoryApi';
 
+
 interface RecipeModalProps {
   recipe: Recipe | null;
   inventory: InventoryItem[];
   onClose: () => void;
   onUpdate?: () => void;
   cuisines?: { id: string; name: string }[];
+  onConfirmCook?: () => void;
 }
 
 const ItemType = {
@@ -98,7 +100,6 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
   const [editedIngredients, setEditedIngredients] = React.useState(recipe.ingredients);
   const [editedInstructions, setEditedInstructions] = React.useState(recipe.instructions);
   const [originalIngredients, setOriginalIngredients] = React.useState(recipe.ingredients);
-
   // Reset edited values when recipe changes
   useEffect(() => {
     setEditedIngredients(recipe.ingredients);
@@ -132,26 +133,11 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
         cook_time: recipe.cookTime,
         servings: recipe.servings || '',
         difficulty: recipe.difficulty || 'Medium',
-        ingredients: editedIngredients.map(ing => {
-          // Handle both formats: combined string "200 g" or separate fields
-          let qty: string;
-          let unit: string;
-          
-          if (typeof ing.quantity === 'string' && ing.quantity.includes(' ')) {
-            const parts = ing.quantity.trim().split(/\s+/);
-            qty = parts[0];
-            unit = parts[1] || '';
-          } else {
-            qty = String(ing.quantity);
-            unit = ing.unit || '';
-          }
-          
-          return {
-            name: ing.name,
-            quantity: qty,
-            unit: unit
-          };
-        }),
+        ingredients: editedIngredients.map(ing => ({
+          name: ing.name,
+          quantity: String(parseFloat(ing.quantity as any) || 0),
+          unit: ing.unit || ''
+        })),
         instructions: recipe.instructions
       };
 
@@ -163,18 +149,8 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
 
       // Step 1: Restore old ingredient quantities
       for (const oldIng of originalIngredients) {
-        // Handle both formats: combined string "200 g" or separate fields
-        let recipeQty: number;
-        let recipeUnit: string;
-        
-        if (typeof oldIng.quantity === 'string' && oldIng.quantity.includes(' ')) {
-          const parts = oldIng.quantity.trim().split(/\s+/);
-          recipeQty = parseFloat(parts[0]) || 0;
-          recipeUnit = (parts[1] || '').toLowerCase();
-        } else {
-          recipeQty = parseFloat(oldIng.quantity as any) || 0;
-          recipeUnit = (oldIng.unit || '').toLowerCase();
-        }
+        const recipeQty = parseFloat(oldIng.quantity as any) || 0;
+        const recipeUnit = (oldIng.unit || '').toLowerCase();
         
         console.log(`Original ingredient: ${oldIng.name}, quantity: ${recipeQty}, unit: ${recipeUnit}`);
         
@@ -228,18 +204,8 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
       const updatedInventory = updatedInventoryResponse.success && updatedInventoryResponse.data ? updatedInventoryResponse.data : freshInventory;
 
       for (const newIng of editedIngredients) {
-        // Handle both formats: combined string "200 g" or separate fields
-        let recipeQty: number;
-        let recipeUnit: string;
-        
-        if (typeof newIng.quantity === 'string' && newIng.quantity.includes(' ')) {
-          const parts = newIng.quantity.trim().split(/\s+/);
-          recipeQty = parseFloat(parts[0]) || 0;
-          recipeUnit = (parts[1] || '').toLowerCase();
-        } else {
-          recipeQty = parseFloat(newIng.quantity as any) || 0;
-          recipeUnit = (newIng.unit || '').toLowerCase();
-        }
+        const recipeQty = parseFloat(newIng.quantity as any) || 0;
+        const recipeUnit = (newIng.unit || '').toLowerCase();
         
         console.log(`Edited ingredient: ${newIng.name}, quantity: ${recipeQty}, unit: ${recipeUnit}`);
         
@@ -342,14 +308,14 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
   };
 
   const handleAddIngredient = () => {
-    setEditedIngredients([...editedIngredients, { name: '', quantity: '' }]);
+    setEditedIngredients([...editedIngredients, { name: '', quantity: '', unit: '' }]);
   };
 
   const handleRemoveIngredient = (index: number) => {
     setEditedIngredients(editedIngredients.filter((_, i) => i !== index));
   };
 
-  const handleUpdateIngredient = (index: number, field: 'name' | 'quantity', value: string) => {
+  const handleUpdateIngredient = (index: number, field: 'name' | 'quantity' | 'unit', value: string) => {
     const updated = [...editedIngredients];
     updated[index] = { ...updated[index], [field]: value };
     setEditedIngredients(updated);
@@ -432,7 +398,7 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
   const colors = getCuisineColors();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-fadeIn">
       <div className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden animate-scaleIn border-2 border-gray-200">
         {/* Header with cuisine-specific gradient */}
         <div className={`relative bg-gradient-to-r ${colors.headerGradient} text-white p-5 overflow-hidden`}>
@@ -577,13 +543,41 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
-                        <input
-                          type="text"
-                          value={ingredient.quantity}
-                          onChange={(e) => handleUpdateIngredient(index, 'quantity', e.target.value)}
-                          placeholder="Quantity (e.g., 200g, 2 cups)"
-                          className="w-full px-3 py-1.5 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            step="any"
+                            value={ingredient.quantity}
+                            onChange={(e) => handleUpdateIngredient(index, 'quantity', e.target.value)}
+                            placeholder="Qty"
+                            className="flex-1 px-3 py-1.5 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-400"
+                          />
+                          <select
+                            value={ingredient.unit || ''}
+                            onChange={(e) => handleUpdateIngredient(index, 'unit', e.target.value)}
+                            className="w-36 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 cursor-pointer"
+                          >
+                            <option value="">Unit</option>
+                            <option value="g">Gram(s)</option>
+                            <option value="kg">Kilogram(s)</option>
+                            <option value="ml">Milliliter(s)</option>
+                            <option value="l">Liter(s)</option>
+                            <option value="cup">Cup(s)</option>
+                            <option value="tbsp">Tablespoon(s)</option>
+                            <option value="tsp">Teaspoon(s)</option>
+                            <option value="oz">Ounce(s)</option>
+                            <option value="lb">Pound(s)</option>
+                            <option value="piece">Piece(s)</option>
+                            <option value="slice">Slice(s)</option>
+                            <option value="pinch">Pinch</option>
+                            <option value="dash">Dash</option>
+                            <option value="clove">Clove(s)</option>
+                            <option value="bunch">Bunch</option>
+                            <option value="can">Can(s)</option>
+                            <option value="package">Package(s)</option>
+                            <option value="to-taste">To Taste</option>
+                          </select>
+                        </div>
                       </div>
                     ))}
                     <button
@@ -633,7 +627,7 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
                           <span className={`font-bold text-sm ml-3 ${
                             inStock ? 'text-emerald-700' : 'text-red-600'
                           }`}>
-                            {ingredient.quantity}
+                            {ingredient.quantity}{ingredient.unit ? ` ${ingredient.unit}` : ''}
                           </span>
                         </div>
                       );

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { InventoryItem } from '../types';
+import { inventoryApi } from '../modules/utils/inventoryApi';
 
 interface AddItemDialogProps {
   isOpen: boolean;
@@ -52,14 +53,28 @@ export function AddItemDialog({
         minimum_stock: editItem?.minimum_stock?.toString(),
       });
     } else {
-      setFormData({
-        product_code: '',
-        name: '',
-        category: 'Vegetables',
-        quantity_available: '',
-        unit: 'kg',
-        price: '',
-        minimum_stock: '',
+      // Fetch next product code for new items
+      inventoryApi.getNextCode().then(response => {
+        const nextCode = (response.data as any)?.next_code || (response as any)?.next_code || '';
+        setFormData({
+          product_code: nextCode,
+          name: '',
+          category: 'Vegetables',
+          quantity_available: '',
+          unit: 'kg',
+          price: '',
+          minimum_stock: '',
+        });
+      }).catch(() => {
+        setFormData({
+          product_code: '',
+          name: '',
+          category: 'Vegetables',
+          quantity_available: '',
+          unit: 'kg',
+          price: '',
+          minimum_stock: '',
+        });
       });
     }
   }, [editItem, isOpen]);
@@ -105,11 +120,12 @@ export function AddItemDialog({
               <input
                 type="text"
                 required
+                readOnly={!editItem}
                 value={formData.product_code}
                 onChange={(e) =>
                   setFormData({ ...formData, product_code: e.target.value })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${!editItem ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 placeholder="e.g., MPH001"
               />
             </div>

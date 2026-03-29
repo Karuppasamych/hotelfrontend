@@ -5,6 +5,7 @@ import { Receipt } from './Receipt';
 import { PaymentModal } from './PaymentModal';
 import { CommonHeader } from '@/app/components/CommonHeader';
 import { billingApi } from '../utils/billingApi';
+import { toast } from 'sonner';
 
 export interface MenuItem {
   id: string;
@@ -85,11 +86,15 @@ export function BillingDashboard() {
 
   const handleCheckout = () => {
     if (orders.length === 0) {
-      alert('Please add items to the bill');
+      toast.error('Please add items to the bill');
       return;
     }
     if (!mobileNumber.trim() || mobileNumber.length !== 10) {
-      alert('Please enter a valid 10-digit mobile number');
+      toast.error('Please enter a valid 10-digit mobile number');
+      return;
+    }
+    if (orderType === 'dine-in' && !tableNumber.trim()) {
+      toast.error('Please enter a table number for dine-in orders');
       return;
     }
     setShowPayment(true);
@@ -114,13 +119,13 @@ export function BillingDashboard() {
       setShowPayment(false);
       setShowReceipt(true);
     } else {
-      alert('Failed to save bill: ' + (response.error || 'Unknown error'));
+      toast.error('Failed to save bill: ' + (response.error || 'Unknown error'));
     }
   };
 
   const saveDraft = () => {
     if (orders.length === 0) {
-      alert('Cannot save empty order as draft');
+      toast.error('Cannot save empty order as draft');
       return;
     }
 
@@ -145,7 +150,7 @@ export function BillingDashboard() {
     setTableNumber('');
     setNumberOfPersons('');
     
-    alert('Order saved as draft successfully!');
+    toast.success('Order saved as draft successfully!');
   };
 
   const loadDraft = (draftId: string) => {
@@ -227,6 +232,8 @@ export function BillingDashboard() {
                 onClearOrder={clearOrder}
                 onCheckout={handleCheckout}
                 onSaveDraft={saveDraft}
+                tableNumber={tableNumber}
+                orderType={orderType}
               />
             </div>
           </div>

@@ -54,10 +54,15 @@ export default function OrderHistory() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const response = await billingApi.getAll();
-      const bills = (response as any)?.data || response || [];
+      const [billsResponse, cancellationsResponse] = await Promise.all([
+        billingApi.getAll(),
+        billingApi.getCancellations(),
+      ]);
+
+      // Map paid bills
+      const bills = (billsResponse as any)?.data || billsResponse || [];
       const billsArray = Array.isArray(bills) ? bills : [];
-      const mapped: Order[] = billsArray.map((bill: any) => ({
+      const mappedBills: Order[] = billsArray.map((bill: any) => ({
         id: String(bill.id),
         orderId: `ORD-${String(bill.id).padStart(3, '0')}`,
         billId: bill.bill_number,
@@ -74,7 +79,29 @@ export default function OrderHistory() {
         paymentMode: mapPaymentMethod(bill.payment_method),
         orderStatus: mapStatus(bill.status),
       }));
-      setOrders(mapped);
+
+      // Map cancellations
+      const cancellations = (cancellationsResponse as any)?.data?.data || (cancellationsResponse as any)?.data || [];
+      const cancellationsArray = Array.isArray(cancellations) ? cancellations : [];
+      const mappedCancellations: Order[] = cancellationsArray.map((c: any) => ({
+        id: `cancel-${c.id}`,
+        orderId: `CAN-${String(c.id).padStart(3, '0')}`,
+        billId: '-',
+        date: c.created_at,
+        orderType: mapOrderType(c.order_type || 'dine-in'),
+        tableNumber: c.table_number || undefined,
+        items: [{
+          id: `cancel-item-${c.id}`,
+          name: c.item_name,
+          quantity: c.quantity,
+          price: parseFloat(c.price),
+        }],
+        totalAmount: parseFloat(c.price) * c.quantity,
+        paymentMode: 'Cash' as const,
+        orderStatus: 'Cancelled' as const,
+      }));
+
+      setOrders([...mappedBills, ...mappedCancellations]);
     } catch (err) {
       console.error('Failed to fetch order history:', err);
     } finally {
