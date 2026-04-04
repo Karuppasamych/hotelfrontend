@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, Plus, Globe, X, Sparkles, ChefHat, Utensils, Lightbulb, Edit2, Search, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Recipe {
   id: string;
@@ -28,6 +29,7 @@ interface AddCuisineManagerProps {
 }
 
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg'];
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
 
 export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRecipe, onEditRecipe, allRecipes, allCuisines, onEditCuisine, onDeleteCuisine, onMessage }: AddCuisineManagerProps) {
   const [newCuisineName, setNewCuisineName] = useState('');
@@ -200,11 +202,16 @@ export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRec
                       <input
                         type="file"
                         accept=".png,.jpg,.jpeg"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
                           if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-                            onMessage?.('Please upload PNG or JPG format only', 'error');
+                            toast.error('Please upload PNG or JPG format only');
+                            e.target.value = '';
+                            return;
+                          }
+                          if (file.size > MAX_FILE_SIZE) {
+                            toast.error(`Image size must be under 1MB. Selected file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
                             e.target.value = '';
                             return;
                           }
@@ -216,7 +223,7 @@ export function AddCuisineManager({ isOpen, onToggle, onAddCuisine, onOpenAddRec
                         required={!editingCuisineId}
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Accepted formats: PNG, JPG
+                        Accepted formats: PNG, JPG (Max 1MB)
                       </p>
                     </div>
                     <div className="flex gap-2 pt-2">

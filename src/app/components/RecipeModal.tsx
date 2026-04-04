@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Clock, ChefHat, Package, CheckCircle2, XCircle, Sparkles, Upload, Edit2, Save, Plus, Trash2, GripVertical } from 'lucide-react';
+import { X, Clock, ChefHat, Package, CheckCircle2, XCircle, Sparkles, Upload, Edit2, Save, Plus, Trash2, GripVertical, IndianRupee } from 'lucide-react';
 import { Recipe } from './RecipeBook';
 import { InventoryItem } from '@/app/types';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
@@ -97,16 +97,20 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
 
   const [isEditingIngredients, setIsEditingIngredients] = React.useState(false);
   const [isEditingInstructions, setIsEditingInstructions] = React.useState(false);
+  const [isEditingPrice, setIsEditingPrice] = React.useState(false);
   const [editedIngredients, setEditedIngredients] = React.useState(recipe.ingredients);
   const [editedInstructions, setEditedInstructions] = React.useState(recipe.instructions);
+  const [editedPrice, setEditedPrice] = React.useState<string>(String(recipe.price || 0));
   const [originalIngredients, setOriginalIngredients] = React.useState(recipe.ingredients);
   // Reset edited values when recipe changes
   useEffect(() => {
     setEditedIngredients(recipe.ingredients);
     setEditedInstructions(recipe.instructions);
+    setEditedPrice(String(recipe.price || 0));
     setOriginalIngredients(recipe.ingredients);
     setIsEditingIngredients(false);
     setIsEditingInstructions(false);
+    setIsEditingPrice(false);
   }, [recipe]);
 
   const handleSaveIngredients = async () => {
@@ -307,6 +311,39 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
     }
   };
 
+  const handleSavePrice = async () => {
+    try {
+      const cuisineName = recipe.cuisine;
+      const cuisine = cuisines?.find(c => c.name === cuisineName);
+      if (!cuisine) return;
+
+      const recipeData = {
+        name: recipe.name,
+        category: recipe.category,
+        cuisine_id: Number(cuisine.id),
+        description: recipe.description,
+        prep_time: recipe.prepTime,
+        cook_time: recipe.cookTime,
+        servings: recipe.servings || '',
+        difficulty: recipe.difficulty || 'Medium',
+        price: parseFloat(editedPrice) || 0,
+        ingredients: recipe.ingredients.map(ing => ({
+          name: ing.name,
+          quantity: String(parseFloat(ing.quantity as any) || 0),
+          unit: ing.unit || ''
+        })),
+        instructions: recipe.instructions
+      };
+
+      await recipeApi.update(Number(recipe.id), recipeData);
+      recipe.price = parseFloat(editedPrice) || 0;
+      setIsEditingPrice(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error saving price:', error);
+    }
+  };
+
   const handleAddIngredient = () => {
     setEditedIngredients([...editedIngredients, { name: '', quantity: '', unit: '' }]);
   };
@@ -438,6 +475,32 @@ export function RecipeModal({ recipe, inventory, onClose, onUpdate, cuisines }: 
                 <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-pink-600 to-rose-600 backdrop-blur-sm rounded-lg text-xs font-semibold shadow-md border border-white border-opacity-20">
                   <Clock className="w-3 h-3" />
                   Cook: {recipe.cookTime}
+                </div>
+                <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-yellow-600 to-amber-600 backdrop-blur-sm rounded-lg text-xs font-semibold shadow-md border border-white border-opacity-20">
+                  <IndianRupee className="w-3 h-3" />
+                  {isEditingPrice ? (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="number"
+                        step="any"
+                        value={editedPrice}
+                        onChange={(e) => setEditedPrice(e.target.value)}
+                        className="w-20 px-1.5 py-0.5 text-xs font-semibold text-gray-800 bg-white rounded focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                        autoFocus
+                      />
+                      <button onClick={handleSavePrice} className="p-0.5 bg-white/30 hover:bg-white/50 rounded transition-colors">
+                        <Save className="w-3 h-3" />
+                      </button>
+                      <button onClick={() => { setIsEditingPrice(false); setEditedPrice(String(recipe.price || 0)); }} className="p-0.5 bg-white/30 hover:bg-white/50 rounded transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="cursor-pointer" onClick={(e) => { e.stopPropagation(); setIsEditingPrice(true); }}>
+                      {recipe.price || 0}
+                      <Edit2 className="w-2.5 h-2.5 inline ml-1 opacity-70" />
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

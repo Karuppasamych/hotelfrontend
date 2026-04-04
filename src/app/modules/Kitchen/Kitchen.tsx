@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { CommonHeader } from '../../components/CommonHeader';
 import { kitchenApi, KitchenOrder } from '../utils/kitchenApi';
-import { ChefHat, Clock, Trash2, RefreshCw, UtensilsCrossed, CheckCircle2, AlertCircle, Timer, Users, Hash, Phone } from 'lucide-react';
+import { ChefHat, Clock, Trash2, RefreshCw, UtensilsCrossed, CheckCircle2, AlertCircle, Timer, Users, Hash, Phone, XCircle, BellRing, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const STATUS_CONFIG = {
@@ -9,37 +9,84 @@ const STATUS_CONFIG = {
   preparing: { label: 'Preparing', color: 'bg-blue-100 text-blue-800 border-blue-300', cardBorder: 'border-blue-300', headerBg: 'from-blue-400 to-indigo-500', order: 2 },
   ready: { label: 'Ready', color: 'bg-green-100 text-green-800 border-green-300', cardBorder: 'border-green-300', headerBg: 'from-green-400 to-emerald-500', order: 3 },
   served: { label: 'Served', color: 'bg-gray-100 text-gray-600 border-gray-300', cardBorder: 'border-gray-300', headerBg: 'from-gray-400 to-gray-500', order: 4 },
+  cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800 border-red-300', cardBorder: 'border-red-400', headerBg: 'from-red-500 to-rose-600', order: 5 },
 };
 
-const STATUSES = ['pending', 'preparing', 'ready', 'served'] as const;
+const STATUSES = ['pending', 'preparing', 'ready', 'served', 'cancelled'] as const;
+const ACTIVE_STATUSES = ['pending', 'preparing', 'ready', 'served'] as const;
+const POLL_INTERVAL = 5000;
 
 export default function Kitchen() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; orderNumber: string } | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const prevOrdersRef = useRef<KitchenOrder[]>([]);
+  const isFirstLoad = useRef(true);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await kitchenApi.getToday();
       if (response.success) {
         const data = (response.data as any)?.data || response.data;
-        setOrders(Array.isArray(data) ? data : []);
+        const newOrders: KitchenOrder[] = Array.isArray(data) ? data : [];
+
+        // Detect changes after first load
+        if (!isFirstLoad.current) {
+          const prevIds = new Set(prevOrdersRef.current.map(o => o.id));
+          const prevStatusMap = new Map(prevOrdersRef.current.map(o => [o.id, o.status]));
+
+          // New orders
+          const addedOrders = newOrders.filter(o => !prevIds.has(o.id));
+          addedOrders.forEach(o => {
+            toast.success(`🆕 New Order: ${o.order_number}`, {
+              description: `${o.items.length} item(s) — ${o.order_type === 'parcel' ? 'Parcel' : `Table ${o.table_number || '-'}`}`,
+              duration: 6000,
+              icon: <BellRing className="h-5 w-5 text-green-600" />,
+            });
+          });
+
+          // Newly cancelled orders
+          newOrders.forEach(o => {
+            const prevStatus = prevStatusMap.get(o.id);
+            if (prevStatus && prevStatus !== 'cancelled' && o.status === 'cancelled') {
+              toast.error(`❌ Order Cancelled: ${o.order_number}`, {
+                description: `${o.items.map(i => i.item_name).join(', ')}`,
+                duration: 8000,
+                icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
+              });
+            }
+          });
+        }
+
+        isFirstLoad.current = false;
+        prevOrdersRef.current = newOrders;
+        setOrders(newOrders);
+        setLastRefresh(new Date());
       }
     } catch {
-      toast.error('Failed to load kitchen orders');
+      if (!silent) toast.error('Failed to load kitchen orders');
     }
-    setLoading(false);
-  };
+    if (!silent) setLoading(false);
+  }, []);
 
-  useEffect(() => { fetchOrders(); }, []);
+  // Initial fetch
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  // Auto-refresh polling
+  useEffect(() => {
+    const interval = setInterval(() => fetchOrders(true), POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
 
   const handleStatusChange = async (id: number, status: string) => {
     try {
       const response = await kitchenApi.updateStatus(id, status);
       if ((response as any).success !== false) {
         setOrders(prev => prev.map(o => o.id === id ? { ...o, status: status as any } : o));
+        prevOrdersRef.current = prevOrdersRef.current.map(o => o.id === id ? { ...o, status: status as any } : o);
         toast.success(`Order updated to ${STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label}`);
       }
     } catch {
@@ -47,11 +94,26 @@ export default function Kitchen() {
     }
   };
 
+  const handleCancel = async (id: number) => {
+    try {
+      const response = await kitchenApi.updateStatus(id, 'cancelled');
+      if ((response as any).success !== false) {
+        setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'cancelled' as any } : o));
+        prevOrdersRef.current = prevOrdersRef.current.map(o => o.id === id ? { ...o, status: 'cancelled' as any } : o);
+        toast.error('Order cancelled');
+      }
+    } catch {
+      toast.error('Failed to cancel order');
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
       await kitchenApi.delete(deleteConfirm.id);
-      setOrders(prev => prev.filter(o => o.id !== deleteConfirm.id));
+      const updated = orders.filter(o => o.id !== deleteConfirm.id);
+      setOrders(updated);
+      prevOrdersRef.current = updated;
       toast.success('Order removed');
     } catch {
       toast.error('Failed to delete order');
@@ -89,20 +151,20 @@ export default function Kitchen() {
               <p className="text-sm text-gray-500">Today's kitchen order tickets</p>
             </div>
           </div>
-          <button onClick={fetchOrders} className="p-2.5 bg-white border-2 border-gray-200 rounded-xl hover:bg-gray-50 shadow-sm transition-all">
-            <RefreshCw className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+              Auto-refresh • {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+            </div>
+            <button onClick={() => fetchOrders()} className="p-2.5 bg-white border-2 border-gray-200 rounded-xl hover:bg-gray-50 shadow-sm transition-all">
+              <RefreshCw className={`w-4 h-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {/* Status Summary */}
-        <div className="grid grid-cols-5 gap-3 mb-6">
-          <button
-            onClick={() => setFilterStatus('all')}
-            className={`p-3 rounded-xl border-2 transition-all text-center ${filterStatus === 'all' ? 'border-orange-400 bg-orange-50 shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'}`}
-          >
-            <p className="text-lg font-bold text-gray-800">{orders.length}</p>
-            <p className="text-xs font-semibold text-gray-500">All Orders</p>
-          </button>
+        <div className="grid grid-cols-6 gap-3 mb-6">
+          
           {STATUSES.map(s => {
             const config = STATUS_CONFIG[s];
             return (
@@ -116,6 +178,13 @@ export default function Kitchen() {
               </button>
             );
           })}
+          <button
+            onClick={() => setFilterStatus('all')}
+            className={`p-3 rounded-xl border-2 transition-all text-center ${filterStatus === 'all' ? 'border-orange-400 bg-orange-50 shadow-md' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+          >
+            <p className="text-lg font-bold text-gray-800">{orders.length}</p>
+            <p className="text-xs font-semibold text-gray-500">All Orders</p>
+          </button>
         </div>
 
         {/* Orders Grid */}
@@ -134,18 +203,27 @@ export default function Kitchen() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredOrders.map(order => {
               const config = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
-              const nextStatus = STATUSES[STATUSES.indexOf(order.status) + 1];
+              const isCancelled = order.status === 'cancelled';
+              const nextStatus = isCancelled ? undefined : ACTIVE_STATUSES[ACTIVE_STATUSES.indexOf(order.status as any) + 1];
 
               return (
-                <div key={order.id} className={`bg-white rounded-xl border-2 ${config.cardBorder} shadow-sm overflow-hidden hover:shadow-md transition-all`}>
+                <div key={order.id} className={`bg-white rounded-xl border-2 ${config.cardBorder} shadow-sm overflow-hidden hover:shadow-md transition-all relative ${isCancelled ? 'opacity-80' : ''}`}>
+                  {/* Cancelled Alert Banner */}
+                  {isCancelled && (
+                    <div className="bg-red-600 text-white px-4 py-2 flex items-center gap-2 animate-pulse">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wide">Order Cancelled</span>
+                    </div>
+                  )}
+
                   {/* Card Header */}
                   <div className={`bg-gradient-to-r ${config.headerBg} px-4 py-3 text-white`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Hash className="w-3.5 h-3.5" />
-                        <span className="font-bold text-sm">{order.order_number}</span>
+                        <span className={`font-bold text-sm ${isCancelled ? 'line-through' : ''}`}>{order.order_number}</span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20`}>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20">
                         {config.label}
                       </span>
                     </div>
@@ -185,33 +263,52 @@ export default function Kitchen() {
                   {/* Items */}
                   <div className="px-4 py-3 space-y-1.5">
                     {order.items.map((item, idx) => (
-                      <div key={item.id || idx} className="flex justify-between items-center py-1 border-b border-gray-50 last:border-0">
+                      <div key={item.id || idx} className={`flex justify-between items-center py-1 border-b border-gray-50 last:border-0 ${isCancelled ? 'line-through text-gray-400' : ''}`}>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-gray-400 w-4">{idx + 1}.</span>
-                          <span className="text-sm font-medium text-gray-800">{item.item_name}</span>
+                          <span className={`text-sm font-medium ${isCancelled ? 'text-gray-400' : 'text-gray-800'}`}>{item.item_name}</span>
                         </div>
-                        <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">x{item.quantity}</span>
+                        <span className={`text-sm font-bold px-2 py-0.5 rounded ${isCancelled ? 'bg-red-50 text-red-400' : 'bg-blue-50 text-blue-600'}`}>x{item.quantity}</span>
                       </div>
                     ))}
                   </div>
 
                   {/* Actions */}
                   <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2">
-                    {nextStatus && (
-                      <button
-                        onClick={() => handleStatusChange(order.id, nextStatus)}
-                        className={`flex-1 px-3 py-2 bg-gradient-to-r ${STATUS_CONFIG[nextStatus].headerBg} text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md transition-all`}
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Mark {STATUS_CONFIG[nextStatus].label}
-                      </button>
-                    )}
-                    {order.status === 'served' && (
-                      <span className="flex-1 text-center text-xs font-semibold text-green-600">✓ Completed</span>
+                    {isCancelled ? (
+                      <div className="flex-1 flex items-center justify-center gap-2 text-red-500 py-1">
+                        <XCircle className="w-4 h-4" />
+                        <span className="text-xs font-bold">Cancelled</span>
+                      </div>
+                    ) : (
+                      <>
+                        {nextStatus && (
+                          <button
+                            onClick={() => handleStatusChange(order.id, nextStatus)}
+                            className={`flex-1 px-3 py-2 bg-gradient-to-r ${STATUS_CONFIG[nextStatus].headerBg} text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow-md transition-all`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Mark {STATUS_CONFIG[nextStatus].label}
+                          </button>
+                        )}
+                        {order.status === 'served' && (
+                          <span className="flex-1 text-center text-xs font-semibold text-green-600">✓ Completed</span>
+                        )}
+                        {order.status !== 'served' && (
+                          <button
+                            onClick={() => handleCancel(order.id)}
+                            className="p-2 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+                            title="Cancel Order"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-red-500" />
+                          </button>
+                        )}
+                      </>
                     )}
                     <button
                       onClick={() => setDeleteConfirm({ id: order.id, orderNumber: order.order_number })}
                       className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete Order"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-red-400" />
                     </button>

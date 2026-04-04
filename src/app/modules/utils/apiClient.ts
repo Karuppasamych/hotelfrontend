@@ -34,6 +34,15 @@ class ApiClient {
       };
 
       const response = await fetch(url, config);
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        return {
+          success: false,
+          error: response.status === 413 ? 'File too large. Please use a smaller image.' : `Server error (${response.status})`,
+        };
+      }
+
       const data = await response.json();
 
       if (!response.ok) {

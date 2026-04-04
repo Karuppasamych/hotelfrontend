@@ -16,7 +16,7 @@ export interface KitchenOrder {
   number_of_persons: string | null;
   customer_name: string | null;
   mobile_number: string | null;
-  status: 'pending' | 'preparing' | 'ready' | 'served';
+  status: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
   created_at: string;
   items: KitchenOrderItem[];
 }

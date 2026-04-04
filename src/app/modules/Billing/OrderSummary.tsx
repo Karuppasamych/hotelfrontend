@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Minus, Plus, X, Trash2, ShoppingCart, FileText, AlertTriangle } from 'lucide-react';
+import { X, Trash2, ShoppingCart, FileText, AlertTriangle } from 'lucide-react';
 import { OrderItem } from './BillingDashboard';
 import { billingApi } from '../utils/billingApi';
+import { confirmedMenuApi } from '../utils/confirmedMenuApi';
 import { toast } from 'sonner';
 
 interface OrderSummaryProps {
@@ -13,6 +14,7 @@ interface OrderSummaryProps {
   onSaveDraft: () => void;
   tableNumber?: string;
   orderType?: string;
+  sentToKitchen?: boolean;
 }
 
 const CGST_RATE = 0.025;
@@ -27,10 +29,13 @@ export function OrderSummary({
   onCheckout,
   onSaveDraft,
   tableNumber,
-  orderType
+  orderType,
+  sentToKitchen
 }: OrderSummaryProps) {
   const [cancelConfirm, setCancelConfirm] = useState<OrderItem | null>(null);
-  const [cancelReason, setCancelReason] = useState('');
+  const [cancelQty, setCancelQty] = useState(1);
+  const [cancelReason, setCancelReason] = useState<'prepared' | 'not_prepared' | 'others' | ''>('');
+  const [cancelOtherReason, setCancelOtherReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
   const subtotal = orders.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -41,19 +46,36 @@ export function OrderSummary({
 
   const handleCancelItem = async () => {
     if (!cancelConfirm) return;
+    if (!cancelReason) {
+      toast.error('Please select a reason for cancellation');
+      return;
+    }
     setCancelling(true);
+    const reasonText = cancelReason === 'prepared' ? 'Prepared and cancelled'
+      : cancelReason === 'not_prepared' ? 'Not Prepared and cancelled'
+      : cancelOtherReason || 'Others';
     try {
       const response = await billingApi.cancelItem({
         item_name: cancelConfirm.name,
-        quantity: cancelConfirm.quantity,
+        quantity: cancelQty,
         price: cancelConfirm.price,
-        reason: cancelReason || undefined,
+        reason: reasonText,
         table_number: tableNumber || undefined,
         order_type: orderType || undefined,
       });
       if ((response as any).success !== false) {
-        onRemoveItem(cancelConfirm.id);
-        toast.success(`${cancelConfirm.name} cancelled and recorded`);
+        // If prepared and cancelled, reduce servings in production queue
+        if (cancelReason === 'prepared') {
+          try {
+            await confirmedMenuApi.reduceServings(cancelConfirm.name, cancelQty);
+          } catch { /* ignore if no matching confirmed menu */ }
+        }
+        if (cancelQty >= cancelConfirm.quantity) {
+          onRemoveItem(cancelConfirm.id);
+        } else {
+          onUpdateQuantity(cancelConfirm.id, cancelConfirm.quantity - cancelQty);
+        }
+        toast.success(`${cancelConfirm.name} (x${cancelQty}) cancelled and recorded`);
       } else {
         toast.error('Failed to record cancellation');
       }
@@ -63,6 +85,8 @@ export function OrderSummary({
     setCancelling(false);
     setCancelConfirm(null);
     setCancelReason('');
+    setCancelOtherReason('');
+    setCancelQty(1);
   };
 
   return (
@@ -103,21 +127,9 @@ export function OrderSummary({
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
-                    className="p-2 bg-white border-2 border-orange-300 rounded-lg hover:bg-orange-100 transition-colors"
-                  >
-                    <Minus className="w-4 h-4 text-orange-600" />
-                  </button>
                   <span className="w-10 text-center text-gray-900 font-bold text-lg">{item.quantity}</span>
                   <button
-                    onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
-                    className="p-2 bg-white border-2 border-orange-300 rounded-lg hover:bg-orange-100 transition-colors"
-                  >
-                    <Plus className="w-4 h-4 text-orange-600" />
-                  </button>
-                  <button
-                    onClick={() => setCancelConfirm(item)}
+                    onClick={() => { setCancelConfirm(item); setCancelQty(item.quantity); setCancelReason(''); setCancelOtherReason(''); }}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
                     title="Cancel item"
                   >
@@ -153,10 +165,15 @@ export function OrderSummary({
 
           <button
             onClick={onSaveDraft}
-            className="w-full mt-4 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] font-bold flex items-center justify-center gap-2"
+            disabled={!sentToKitchen}
+            className={`w-full mt-4 px-6 py-3 rounded-lg transition-all shadow-lg font-bold flex items-center justify-center gap-2 ${
+              sentToKitchen
+                ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl transform hover:scale-[1.02]'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+            }`}
           >
             <FileText className="w-5 h-5" />
-            Save as Draft
+            Save Order
           </button>
 
           <button
@@ -179,27 +196,81 @@ export function OrderSummary({
               <h2 className="text-xl font-semibold text-gray-900">Cancel Item</h2>
             </div>
             <div className="p-6">
-              <p className="text-gray-600 mb-3">Are you sure you want to cancel this item?</p>
-              <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                <p className="font-bold text-gray-900">{cancelConfirm.name}</p>
-                <p className="text-sm text-gray-500">Qty: {cancelConfirm.quantity} × ₹{cancelConfirm.price.toFixed(2)} = <span className="font-bold text-orange-600">₹{(cancelConfirm.price * cancelConfirm.quantity).toFixed(2)}</span></p>
+              <p className="text-gray-600 mb-3">How many do you want to cancel?</p>
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <p className="font-bold text-gray-900 mb-3">{cancelConfirm.name}</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setCancelQty(Math.max(1, cancelQty - 1))}
+                      className="w-9 h-9 bg-white border-2 border-orange-300 rounded-lg hover:bg-orange-100 transition-colors flex items-center justify-center text-orange-600 font-bold text-lg"
+                    >
+                      −
+                    </button>
+                    <span className="w-12 text-center text-gray-900 font-bold text-xl">{cancelQty}</span>
+                    <button
+                      onClick={() => setCancelQty(Math.min(cancelConfirm.quantity, cancelQty + 1))}
+                      className="w-9 h-9 bg-white border-2 border-orange-300 rounded-lg hover:bg-orange-100 transition-colors flex items-center justify-center text-orange-600 font-bold text-lg"
+                    >
+                      +
+                    </button>
+                    <span className="text-sm text-gray-400">of {cancelConfirm.quantity}</span>
+                  </div>
+                  <p className="text-sm text-gray-500">₹{cancelConfirm.price.toFixed(2)} × {cancelQty} = <span className="font-bold text-orange-600">₹{(cancelConfirm.price * cancelQty).toFixed(2)}</span></p>
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason for cancellation (optional)</label>
-                <input
-                  type="text"
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="e.g., Customer changed mind, Out of stock..."
-                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-red-400 text-sm"
-                  autoFocus
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reason for cancellation *</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-orange-50 ${cancelReason === 'prepared' ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}">
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      checked={cancelReason === 'prepared'}
+                      onChange={() => setCancelReason('prepared')}
+                      className="w-4 h-4 text-orange-600 accent-orange-600"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-800">Prepared and cancelled</span>
+                      <p className="text-[10px] text-orange-600 font-medium">Servings will be reduced from production queue</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-green-50 ${cancelReason === 'not_prepared' ? 'border-green-400 bg-green-50' : 'border-gray-200'}">
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      checked={cancelReason === 'not_prepared'}
+                      onChange={() => setCancelReason('not_prepared')}
+                      className="w-4 h-4 text-green-600 accent-green-600"
+                    />
+                    <span className="text-sm font-medium text-gray-800">Not Prepared and cancelled</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50 ${cancelReason === 'others' ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}">
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      checked={cancelReason === 'others'}
+                      onChange={() => setCancelReason('others')}
+                      className="w-4 h-4 text-blue-600 accent-blue-600"
+                    />
+                    <span className="text-sm font-medium text-gray-800">Others</span>
+                  </label>
+                  {cancelReason === 'others' && (
+                    <input
+                      type="text"
+                      value={cancelOtherReason}
+                      onChange={(e) => setCancelOtherReason(e.target.value)}
+                      placeholder="Enter reason (optional)"
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-400 text-sm ml-7"
+                    />
+                  )}
+                </div>
               </div>
               <p className="text-xs text-red-500 mt-3">This will be recorded in cancellation history.</p>
             </div>
             <div className="flex gap-3 p-6 pt-0">
               <button
-                onClick={() => { setCancelConfirm(null); setCancelReason(''); }}
+                onClick={() => { setCancelConfirm(null); setCancelReason(''); setCancelOtherReason(''); setCancelQty(1); }}
                 className="flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all font-medium"
                 disabled={cancelling}
               >

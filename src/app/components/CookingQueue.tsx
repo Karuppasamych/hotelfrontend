@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Dish } from '../modules/RecipeCalculatory/mockData';
-import { ClipboardList, ChefHat, Calendar, Printer, Edit3, Coffee, Sun, Sunset, Moon, Sparkles, Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { ClipboardList, ChefHat, Calendar, Printer, Edit3, Coffee, Sun, Sunset, Moon, Sparkles, Trash2, ChevronDown } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import { apiClient } from '../modules/utils/apiClient';
 
 export interface ConfirmedMenu {
@@ -28,6 +28,17 @@ const MEAL_COLUMNS = [
 
 export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEdit, onDeleteMenu }) => {
   const [soldCounts, setSoldCounts] = useState<Record<string, Record<string, number>>>({});
+  const today = new Date().toISOString().split('T')[0];
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set([today]));
+
+  const toggleDate = (date: string) => {
+    setExpandedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  };
 
   // Get unique dates from confirmed menus
   const uniqueDates = useMemo(() => {
@@ -112,32 +123,45 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
 
           return (
             <div key={group.date} className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
-              {/* Date Header */}
-              <div className="bg-stone-50 border-b border-stone-200 px-6 py-3 flex justify-between items-center relative">
+              {/* Date Header — Accordion Toggle */}
+              <button
+                onClick={() => toggleDate(group.date)}
+                className="w-full bg-stone-50 border-b border-stone-200 px-6 py-3 flex justify-between items-center relative hover:bg-stone-100 transition-colors cursor-pointer"
+              >
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-orange-400" />
                 <div className="flex items-center gap-3 pl-2">
                   <Calendar className="h-4 w-4 text-emerald-600" />
-                  <span className="font-bold text-stone-800">{format(new Date(group.date), 'MMM dd, yyyy')}</span>
+                  <span className="font-bold text-stone-800">{format(parseISO(group.date), 'MMM dd, yyyy')}</span>
+                  {group.date === today && (
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200">Today</span>
+                  )}
+                  <span className="text-xs text-stone-400 font-medium">
+                    {Object.values(group.mealGroups).reduce((acc, menus) => acc + getMergedDishes(menus).length, 0)} dishes
+                  </span>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const all: { dish: Dish; servings: number }[] = [];
-                      Object.values(group.mealGroups).forEach(menus => all.push(...getMergedDishes(menus)));
-                      onEdit(group.date, all);
-                    }}
-                    className="text-stone-500 hover:text-blue-600 hover:bg-blue-50 border border-stone-200 hover:border-blue-200 bg-white px-3 py-1.5 rounded-lg transition-all text-xs font-bold flex items-center gap-1.5 shadow-sm"
-                  >
-                    <Edit3 className="h-3.5 w-3.5" />
-                    Edit
-                  </button>
-                  <button className="text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 p-1.5 rounded-lg transition-all" title="Print">
-                    <Printer className="h-4 w-4" />
-                  </button>
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => {
+                        const all: { dish: Dish; servings: number }[] = [];
+                        Object.values(group.mealGroups).forEach(menus => all.push(...getMergedDishes(menus)));
+                        onEdit(group.date, all);
+                      }}
+                      className="text-stone-500 hover:text-blue-600 hover:bg-blue-50 border border-stone-200 hover:border-blue-200 bg-white px-3 py-1.5 rounded-lg transition-all text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                    <button className="text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 p-1.5 rounded-lg transition-all" title="Print">
+                      <Printer className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-stone-400 transition-transform duration-300 ${expandedDates.has(group.date) ? 'rotate-180' : ''}`} />
                 </div>
-              </div>
+              </button>
 
-              {/* Meal Time Columns */}
+              {/* Meal Time Columns — Collapsible */}
+              {expandedDates.has(group.date) && (
               <div className="grid grid-cols-5 divide-x divide-stone-100 min-h-[200px]">
                 {MEAL_COLUMNS.map(meal => {
                   const Icon = meal.icon;
@@ -211,6 +235,7 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
                   );
                 })}
               </div>
+              )}
             </div>
           );
         })}

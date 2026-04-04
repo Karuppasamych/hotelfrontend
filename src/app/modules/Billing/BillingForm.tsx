@@ -65,8 +65,10 @@ export function BillingForm({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
+  const [isProductSelected, setIsProductSelected] = useState(false);
   const [draftSearchQuery, setDraftSearchQuery] = useState('');
   const [showKOT, setShowKOT] = useState(false);
+  const [kotItems, setKotItems] = useState<StagedItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +106,7 @@ export function BillingForm({
     setSelectedCategory(suggestion.category);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
+    setIsProductSelected(true);
     
     // Focus on quantity field after selection
     setTimeout(() => {
@@ -136,6 +139,11 @@ export function BillingForm({
       return;
     }
 
+    if (!isProductSelected) {
+      toast.error('Please select a valid product from the suggestions');
+      return;
+    }
+
     const priceNum = parseFloat(price);
     const quantityNum = parseInt(quantity);
 
@@ -163,6 +171,7 @@ export function BillingForm({
     setQuantity('1');
     setSelectedCategory('');
     setShowSuggestions(false);
+    setIsProductSelected(false);
     
     // Focus back to item name
     inputRef.current?.focus();
@@ -328,7 +337,15 @@ export function BillingForm({
                 id="itemName"
                 type="text"
                 value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
+                onChange={(e) => {
+                  setItemName(e.target.value);
+                  if (isProductSelected) {
+                    setIsProductSelected(false);
+                    setPrice('');
+                    setProductCode('');
+                    setSelectedCategory('');
+                  }
+                }}
                 onKeyDown={handleKeyDown}
                 onBlur={() => {
                   // Delay to allow click events to register
@@ -543,22 +560,15 @@ export function BillingForm({
             ))}
           </div>
 
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={handleAddAllToBill}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg hover:from-orange-700 hover:to-amber-700 transition-all shadow-lg hover:shadow-xl font-bold flex items-center justify-center gap-2"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              Add All to Order ({stagedItems.length} items)
-            </button>
+          <div className="mt-4">
             <button
               onClick={async () => {
                 if (stagedItems.length === 0) {
-                  toast.error('No items to generate KOT');
+                  toast.error('No items to send to kitchen');
                   return;
                 }
                 if (orderType === 'dine-in' && !tableNumber.trim()) {
-                  toast.error('Please enter table number for KOT');
+                  toast.error('Please enter table number');
                   return;
                 }
                 try {
@@ -571,30 +581,40 @@ export function BillingForm({
                     items: stagedItems.map(item => ({ name: item.name, quantity: item.quantity, category: item.category })),
                   });
                   if (response.success) {
+                    // Add items to bill order
+                    const itemsToAdd = stagedItems.map(item => ({
+                      name: item.name,
+                      price: item.price,
+                      quantity: item.quantity,
+                      code: item.code
+                    }));
+                    onAddItems(itemsToAdd);
+                    setKotItems([...stagedItems]);
+                    setStagedItems([]);
                     toast.success(`KOT ${(response.data as any)?.orderNumber || ''} sent to kitchen!`);
                     setShowKOT(true);
                   } else {
-                    toast.error('Failed to create KOT');
+                    toast.error('Failed to send to kitchen');
                   }
                 } catch {
-                  toast.error('Error sending KOT to kitchen');
+                  toast.error('Error sending to kitchen');
                 }
               }}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl font-bold flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl font-bold flex items-center justify-center gap-2"
             >
               <Printer className="w-5 h-5" />
-              KOT
+              Sent To Kitchen ({stagedItems.length} items)
             </button>
           </div>
         </div>
       )}
 
-      {/* Draft Orders Section */}
+      {/* Saved Orders Section */}
       {draftOrders.length > 0 && (
         <div className="p-5 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl border-2 border-orange-200 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <FileText className="w-6 h-6 text-orange-600" />
-            <h3 className="text-gray-800 font-bold text-lg">Draft Orders</h3>
+            <h3 className="text-gray-800 font-bold text-lg">Saved Orders</h3>
             <span className="bg-orange-500 text-white text-sm px-3 py-1 rounded-full font-bold">
               {draftOrders.length}
             </span>
@@ -706,7 +726,7 @@ export function BillingForm({
                         onClick={() => onLoadDraft(draft.id)}
                         className="flex-1 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 transition-all shadow-md hover:shadow-lg font-semibold text-sm"
                       >
-                        Load Draft
+                        Load Order
                       </button>
                       <button
                         onClick={() => onDeleteDraft(draft.id)}
@@ -764,7 +784,7 @@ export function BillingForm({
               </div>
 
               <div className="space-y-2 mb-4">
-                {stagedItems.map((item, idx) => (
+                {kotItems.map((item, idx) => (
                   <div key={item.id} className="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
                     <div className="flex items-center gap-2 flex-1">
                       <span className="text-xs font-bold text-gray-400 w-5">{idx + 1}.</span>
@@ -776,7 +796,7 @@ export function BillingForm({
               </div>
 
               <div className="border-t-2 border-dashed border-gray-300 pt-3 text-center">
-                <p className="text-xs text-gray-400">Total Items: <span className="font-bold text-gray-700">{stagedItems.reduce((sum, i) => sum + i.quantity, 0)}</span></p>
+                <p className="text-xs text-gray-400">Total Items: <span className="font-bold text-gray-700">{kotItems.reduce((sum, i) => sum + i.quantity, 0)}</span></p>
               </div>
             </div>
 
@@ -801,10 +821,10 @@ export function BillingForm({
                       if (orderType === 'parcel') win.document.write('<p><strong>PARCEL</strong></p>');
                       if (numberOfPersons) win.document.write(`<p>Persons: ${numberOfPersons}</p>`);
                       win.document.write('</div>');
-                      stagedItems.forEach((item, idx) => {
+                      kotItems.forEach((item, idx) => {
                         win.document.write(`<div class="item"><span>${idx + 1}. ${item.name}</span><strong>x${item.quantity}</strong></div>`);
                       });
-                      win.document.write(`<div class="footer"><p>Total Items: ${stagedItems.reduce((sum, i) => sum + i.quantity, 0)}</p></div>`);
+                      win.document.write(`<div class="footer"><p>Total Items: ${kotItems.reduce((sum, i) => sum + i.quantity, 0)}</p></div>`);
                       win.document.write('</body></html>');
                       win.document.close();
                       win.print();

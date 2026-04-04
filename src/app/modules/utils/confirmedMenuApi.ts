@@ -57,4 +57,8 @@ export const confirmedMenuApi = {
   delete: (id: number): Promise<ApiResponse<{ message: string }>> => {
     return apiClient.delete(`/confirmed-menus/${id}`);
   },
+
+  reduceServings: (dishName: string, quantity: number): Promise<ApiResponse<{ message: string }>> => {
+    return apiClient.put('/confirmed-menus/reduce-servings', { dish_name: dishName, quantity });
+  },
 };

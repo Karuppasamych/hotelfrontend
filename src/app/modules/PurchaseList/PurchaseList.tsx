@@ -3,7 +3,7 @@ import { CommonHeader } from '../../components/CommonHeader';
 import { AgGridDataTable } from '../../components/AgGridDataTable';
 import { purchaseListApi } from '../utils/purchaseListApi';
 import { ColDef } from 'ag-grid-community';
-import { Trash2, ShoppingCart, Calendar, Filter, CheckCircle2, Tag } from 'lucide-react';
+import { Trash2, ShoppingCart, Calendar, Filter, CheckCircle2, Tag, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface PurchaseItem {
@@ -68,6 +68,89 @@ export default function PurchaseList() {
       }
     } catch {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handlePrintSelected = () => {
+    const idsToPrint = selectedIds.size > 0 ? selectedIds : new Set(filteredItems.map(i => i.id));
+    const printItems = items.filter(i => idsToPrint.has(i.id));
+    if (printItems.length === 0) {
+      toast.error('No items to print');
+      return;
+    }
+
+    const dateStr = filterDate
+      ? new Date(filterDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const totalQty = printItems.reduce((s, i) => s + parseFloat(String(i.quantity)), 0);
+
+    const html = `
+      <html>
+      <head>
+        <title>Purchase List</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #1a1a1a; }
+          .header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; }
+          .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+          .header p { font-size: 13px; color: #6b7280; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th { background: #f3f4f6; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; border-bottom: 2px solid #d1d5db; }
+          td { padding: 9px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+          tr:nth-child(even) { background: #f9fafb; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          .bold { font-weight: 700; }
+          .status-pending { color: #b45309; background: #fef3c7; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+          .status-purchased { color: #15803d; background: #dcfce7; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+          .footer { margin-top: 20px; padding-top: 12px; border-top: 2px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; }
+          @media print { body { padding: 15px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Madurai Pandiyan Hotel</h1>
+          <p>Purchase List — ${dateStr}</p>
+          <p style="margin-top:4px;">${printItems.length} item(s)</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item Name</th>
+              <th>Category</th>
+              <th class="text-right">To Buy</th>
+              <th class="text-right">In Stock</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${printItems.map((item, idx) => `
+              <tr>
+                <td class="bold">${idx + 1}</td>
+                <td class="bold">${item.item_name}</td>
+                <td>${item.category || 'Uncategorized'}</td>
+                <td class="text-right bold">${parseFloat(String(item.quantity)).toFixed(2)} ${item.unit}</td>
+                <td class="text-right">${parseFloat(String(item.in_stock)).toFixed(2)} ${item.unit}</td>
+                <td class="text-center"><span class="${item.status === 'purchased' ? 'status-purchased' : 'status-pending'}">${item.status === 'purchased' ? 'Purchased' : 'Pending'}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="footer">
+          <span>Total Items: ${printItems.length}</span>
+          <span>Printed: ${new Date().toLocaleString('en-IN')}</span>
+        </div>
+        <script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; }</script>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
     }
   };
 
@@ -296,6 +379,13 @@ export default function PurchaseList() {
                 Mark as Purchased ({pendingSelected.length})
               </button>
             )}
+            <button
+              onClick={handlePrintSelected}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm"
+            >
+              <Printer className="h-4 w-4" />
+              {selectedIds.size > 0 ? `Print Selected (${selectedIds.size})` : 'Print All'}
+            </button>
             <span className="bg-white text-stone-600 text-sm font-bold px-4 py-2 rounded-full border border-stone-200 shadow-sm">
               {filteredItems.length} Items
             </span>

@@ -153,7 +153,7 @@ export function ConfirmCookModal({ isOpen, recipeName, defaultServings, onClose,
               className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all font-bold flex items-center justify-center gap-2"
             >
               <ChefHat className="w-4 h-4" />
-              Send to Kitchen
+              Confirm 
             </button>
           </div>
         </div>

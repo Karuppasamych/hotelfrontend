@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BillingForm } from './BillingForm';
 import { OrderSummary } from './OrderSummary';
 import { Receipt } from './Receipt';
 import { PaymentModal } from './PaymentModal';
 import { CommonHeader } from '@/app/components/CommonHeader';
 import { billingApi } from '../utils/billingApi';
+import { draftApi } from '../utils/draftApi';
 import { toast } from 'sonner';
 
 export interface MenuItem {
@@ -48,15 +49,39 @@ export function BillingDashboard() {
   const [currentBillNumber, setCurrentBillNumber] = useState('');
   const [draftOrders, setDraftOrders] = useState<DraftOrder[]>([]);
 
+  // Fetch drafts from database on mount
+  useEffect(() => {
+    const fetchDrafts = async () => {
+      try {
+        const response = await draftApi.getAll();
+        const data = (response.data as any)?.data || response.data;
+        if (Array.isArray(data)) setDraftOrders(data);
+      } catch { /* ignore */ }
+    };
+    fetchDrafts();
+  }, []);
+  const [sentToKitchen, setSentToKitchen] = useState(false);
+
   const addItemsToBill = (items: { name: string; price: number; quantity: number; code?: string }[]) => {
-    const newItems: OrderItem[] = items.map(item => ({
-      id: Date.now().toString() + Math.random(),
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      category: 'General'
-    }));
-    setOrders(prev => [...prev, ...newItems]);
+    setOrders(prev => {
+      const updated = [...prev];
+      for (const item of items) {
+        const existing = updated.find(o => o.name === item.name);
+        if (existing) {
+          existing.quantity += item.quantity;
+        } else {
+          updated.push({
+            id: Date.now().toString() + Math.random(),
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            category: 'General'
+          });
+        }
+      }
+      return updated;
+    });
+    setSentToKitchen(true);
   };
 
   const updateQuantity = (id: string, quantity: number) => {
@@ -82,6 +107,7 @@ export function BillingDashboard() {
     setTableNumber('');
     setNumberOfPersons('');
     setPaymentDetails(null);
+    setSentToKitchen(false);
   };
 
   const handleCheckout = () => {
@@ -123,34 +149,46 @@ export function BillingDashboard() {
     }
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     if (orders.length === 0) {
-      toast.error('Cannot save empty order as draft');
+      toast.error('Cannot save empty order');
       return;
     }
-
-    const draft: DraftOrder = {
-      id: Date.now().toString() + Math.random(),
-      orders: [...orders],
-      mobileNumber,
-      customerName,
-      orderType,
-      tableNumber,
-      numberOfPersons,
-      timestamp: new Date()
-    };
-
-    setDraftOrders(prev => [...prev, draft]);
-    
-    // Clear current order
-    setOrders([]);
-    setMobileNumber('');
-    setCustomerName('');
-    setOrderType('dine-in');
-    setTableNumber('');
-    setNumberOfPersons('');
-    
-    toast.success('Order saved as draft successfully!');
+    try {
+      const response = await draftApi.create({
+        mobile_number: mobileNumber,
+        customer_name: customerName,
+        order_type: orderType,
+        table_number: tableNumber,
+        number_of_persons: numberOfPersons,
+        items: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category })),
+      });
+      if ((response as any).success !== false) {
+        const newDraft: DraftOrder = {
+          id: String((response.data as any)?.id || Date.now()),
+          orders: [...orders],
+          mobileNumber,
+          customerName,
+          orderType,
+          tableNumber,
+          numberOfPersons,
+          timestamp: new Date()
+        };
+        setDraftOrders(prev => [...prev, newDraft]);
+        setOrders([]);
+        setMobileNumber('');
+        setCustomerName('');
+        setOrderType('dine-in');
+        setTableNumber('');
+        setNumberOfPersons('');
+        setSentToKitchen(false);
+        toast.success('Order saved successfully!');
+      } else {
+        toast.error('Failed to save order');
+      }
+    } catch {
+      toast.error('Error saving order');
+    }
   };
 
   const loadDraft = (draftId: string) => {
@@ -174,10 +212,16 @@ export function BillingDashboard() {
     setDraftOrders(prev => prev.filter(d => d.id !== draftId));
   };
 
-  const deleteDraft = (draftId: string) => {
-    const confirm = window.confirm('Are you sure you want to delete this draft?');
+  const deleteDraft = async (draftId: string) => {
+    const confirm = window.confirm('Are you sure you want to delete this saved order?');
     if (confirm) {
-      setDraftOrders(prev => prev.filter(d => d.id !== draftId));
+      try {
+        await draftApi.delete(parseInt(draftId));
+        setDraftOrders(prev => prev.filter(d => d.id !== draftId));
+        toast.success('Saved order deleted');
+      } catch {
+        toast.error('Failed to delete saved order');
+      }
     }
   };
 
@@ -234,6 +278,7 @@ export function BillingDashboard() {
                 onSaveDraft={saveDraft}
                 tableNumber={tableNumber}
                 orderType={orderType}
+                sentToKitchen={sentToKitchen}
               />
             </div>
           </div>
