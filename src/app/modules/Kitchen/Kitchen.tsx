@@ -19,7 +19,7 @@ const POLL_INTERVAL = 5000;
 export default function Kitchen() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('pending');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; orderNumber: string } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const prevOrdersRef = useRef<KitchenOrder[]>([]);

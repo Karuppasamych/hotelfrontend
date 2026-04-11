@@ -19,4 +19,15 @@ export const draftApi = {
   delete: (id: number): Promise<ApiResponse<{ message: string }>> => {
     return apiClient.delete(`/saved-orders/${id}`);
   },
+
+  update: (id: number, data: {
+    mobile_number: string;
+    customer_name: string;
+    order_type: string;
+    table_number: string;
+    number_of_persons: string;
+    items: { name: string; price: number; quantity: number; category?: string }[];
+  }): Promise<ApiResponse<{ message: string }>> => {
+    return apiClient.put(`/saved-orders/${id}`, data);
+  },
 };

@@ -201,6 +201,13 @@ export function BillingForm({
   };
 
   const stagedTotal = stagedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const CGST_RATE = 0.025;
+  const SGST_RATE = 0.025;
+  const SERVICE_CHARGE_RATE = 0.05;
+  const stagedServiceCharge = stagedTotal * SERVICE_CHARGE_RATE;
+  const stagedCgst = stagedTotal * CGST_RATE;
+  const stagedSgst = stagedTotal * SGST_RATE;
+  const stagedGrandTotal = stagedTotal + stagedServiceCharge + stagedCgst + stagedSgst;
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-200">
@@ -560,11 +567,43 @@ export function BillingForm({
             ))}
           </div>
 
+          {/* Preview Bill */}
+          <div className="mt-4 border-t-2 border-orange-200 pt-4 space-y-2 bg-white p-4 rounded-lg border-2 border-orange-100">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-orange-600" />
+              <h4 className="text-gray-800 font-bold text-sm">Bill Preview</h4>
+            </div>
+            <div className="flex justify-between text-sm text-gray-700">
+              <span>Subtotal</span>
+              <span className="font-bold">₹{stagedTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Service Charge (5%)</span>
+              <span className="font-medium">₹{stagedServiceCharge.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>CGST (2.5%)</span>
+              <span className="font-medium">₹{stagedCgst.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>SGST (2.5%)</span>
+              <span className="font-medium">₹{stagedSgst.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-900 pt-2 border-t-2 border-orange-300 text-lg">
+              <span className="font-bold">Estimated Total</span>
+              <span className="font-bold text-orange-600">₹{stagedGrandTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
           <div className="mt-4">
             <button
               onClick={async () => {
                 if (stagedItems.length === 0) {
                   toast.error('No items to send to kitchen');
+                  return;
+                }
+                if (!mobileNumber.trim() || mobileNumber.length !== 10) {
+                  toast.error('Please enter a valid 10-digit mobile number');
                   return;
                 }
                 if (orderType === 'dine-in' && !tableNumber.trim()) {

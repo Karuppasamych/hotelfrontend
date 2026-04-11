@@ -6,13 +6,16 @@ interface PaymentModalProps {
   orders: OrderItem[];
   onComplete: (payment: PaymentDetails) => void;
   onCancel: () => void;
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number };
 }
 
-const CGST_RATE = 0.025;
-const SGST_RATE = 0.025;
-const SERVICE_CHARGE_RATE = 0.05;
 
-export function PaymentModal({ orders, onComplete, onCancel }: PaymentModalProps) {
+export function PaymentModal({ orders, onComplete, onCancel, billingSettings }: PaymentModalProps) {
+  const SERVICE_CHARGE_ENABLED = billingSettings?.serviceChargeEnabled ?? true;
+  const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
+  const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
+  const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
+
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | null>(null);
   const [processing, setProcessing] = useState(false);
   
@@ -29,7 +32,7 @@ export function PaymentModal({ orders, onComplete, onCancel }: PaymentModalProps
   const [cashReceived, setCashReceived] = useState('');
 
   const subtotal = orders.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const serviceCharge = subtotal * SERVICE_CHARGE_RATE;
+  const serviceCharge = SERVICE_CHARGE_ENABLED ? subtotal * SERVICE_CHARGE_RATE : 0;
   const cgst = subtotal * CGST_RATE;
   const sgst = subtotal * SGST_RATE;
   const total = subtotal + serviceCharge + cgst + sgst;
@@ -134,15 +137,15 @@ export function PaymentModal({ orders, onComplete, onCancel }: PaymentModalProps
               <span className="font-bold">₹{subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-600 text-xs">
-              <span>Service Charge (5%)</span>
+              <span>{`Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)`}</span>
               <span className="font-semibold">₹{serviceCharge.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-600 text-xs">
-              <span>CGST (2.5%)</span>
+              <span>{`CGST (${(CGST_RATE * 100).toFixed(1)}%)`}</span>
               <span className="font-semibold">₹{cgst.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-600 text-xs">
-              <span>SGST (2.5%)</span>
+              <span>{`SGST (${(SGST_RATE * 100).toFixed(1)}%)`}</span>
               <span className="font-semibold">₹{sgst.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center pt-2 border-t-2 border-orange-300">

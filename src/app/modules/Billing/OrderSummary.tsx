@@ -3,6 +3,7 @@ import { X, Trash2, ShoppingCart, FileText, AlertTriangle } from 'lucide-react';
 import { OrderItem } from './BillingDashboard';
 import { billingApi } from '../utils/billingApi';
 import { confirmedMenuApi } from '../utils/confirmedMenuApi';
+import { kitchenApi } from '../utils/kitchenApi';
 import { toast } from 'sonner';
 
 interface OrderSummaryProps {
@@ -15,11 +16,10 @@ interface OrderSummaryProps {
   tableNumber?: string;
   orderType?: string;
   sentToKitchen?: boolean;
+  onItemCancelled?: () => void;
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number };
 }
 
-const CGST_RATE = 0.025;
-const SGST_RATE = 0.025;
-const SERVICE_CHARGE_RATE = 0.05;
 
 export function OrderSummary({ 
   orders, 
@@ -30,7 +30,9 @@ export function OrderSummary({
   onSaveDraft,
   tableNumber,
   orderType,
-  sentToKitchen
+  sentToKitchen,
+  onItemCancelled,
+  billingSettings
 }: OrderSummaryProps) {
   const [cancelConfirm, setCancelConfirm] = useState<OrderItem | null>(null);
   const [cancelQty, setCancelQty] = useState(1);
@@ -38,8 +40,13 @@ export function OrderSummary({
   const [cancelOtherReason, setCancelOtherReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
+  const SERVICE_CHARGE_ENABLED = billingSettings?.serviceChargeEnabled ?? true;
+  const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
+  const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
+  const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
+
   const subtotal = orders.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const serviceCharge = subtotal * SERVICE_CHARGE_RATE;
+  const serviceCharge = SERVICE_CHARGE_ENABLED ? subtotal * SERVICE_CHARGE_RATE : 0;
   const cgst = subtotal * CGST_RATE;
   const sgst = subtotal * SGST_RATE;
   const total = subtotal + serviceCharge + cgst + sgst;
@@ -64,6 +71,10 @@ export function OrderSummary({
         order_type: orderType || undefined,
       });
       if ((response as any).success !== false) {
+        // Reduce quantity in kitchen order
+        try {
+          await kitchenApi.reduceItemQuantity(cancelConfirm.name, cancelQty);
+        } catch { /* ignore */ }
         // If prepared and cancelled, reduce servings in production queue
         if (cancelReason === 'prepared') {
           try {
@@ -76,6 +87,7 @@ export function OrderSummary({
           onUpdateQuantity(cancelConfirm.id, cancelConfirm.quantity - cancelQty);
         }
         toast.success(`${cancelConfirm.name} (x${cancelQty}) cancelled and recorded`);
+        onItemCancelled?.();
       } else {
         toast.error('Failed to record cancellation');
       }
@@ -145,16 +157,18 @@ export function OrderSummary({
               <span>Subtotal</span>
               <span className="font-bold">₹{subtotal.toFixed(2)}</span>
             </div>
+            {SERVICE_CHARGE_ENABLED && (
+              <div className="flex justify-between text-gray-600">
+                <span>Service Charge ({(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)</span>
+                <span className="font-medium">₹{serviceCharge.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-gray-600">
-              <span>Service Charge (5%)</span>
-              <span className="font-medium">₹{serviceCharge.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>CGST (2.5%)</span>
+              <span>CGST ({(CGST_RATE * 100).toFixed(1)}%)</span>
               <span className="font-medium">₹{cgst.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-600">
-              <span>SGST (2.5%)</span>
+              <span>SGST ({(SGST_RATE * 100).toFixed(1)}%)</span>
               <span className="font-medium">₹{sgst.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-900 pt-3 border-t-2 border-orange-500 text-xl">

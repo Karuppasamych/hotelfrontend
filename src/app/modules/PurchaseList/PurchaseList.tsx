@@ -23,7 +23,8 @@ interface PurchaseItem {
 export default function PurchaseList() {
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState('');
+  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
+  const [appliedDate, setAppliedDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -31,8 +32,8 @@ export default function PurchaseList() {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const response = filterDate
-        ? await purchaseListApi.getByDate(filterDate)
+      const response = appliedDate
+        ? await purchaseListApi.getByDate(appliedDate)
         : await purchaseListApi.getAll();
       const data = (response.data as any)?.data || response.data;
       setItems(Array.isArray(data) ? data : []);
@@ -44,7 +45,7 @@ export default function PurchaseList() {
     }
   };
 
-  useEffect(() => { fetchItems(); }, [filterDate]);
+  useEffect(() => { fetchItems(); }, [appliedDate]);
 
   const handleDelete = async (id: number) => {
     try {
@@ -398,12 +399,17 @@ export default function PurchaseList() {
             <Calendar className="h-4 w-4 text-stone-400" />
             <input
               type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              defaultValue={filterDate}
+              onBlur={(e) => {
+                const val = e.target.value;
+                setFilterDate(val);
+                setAppliedDate(val);
+              }}
+              ref={(el) => { if (el) el.value = filterDate; }}
               className="px-3 py-2 text-sm border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
             {filterDate && (
-              <button onClick={() => setFilterDate('')} className="text-xs text-stone-500 hover:text-stone-700 underline">
+              <button onClick={() => { setFilterDate(''); setAppliedDate(''); }} className="text-xs text-stone-500 hover:text-stone-700 underline">
                 Clear
               </button>
             )}

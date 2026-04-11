@@ -50,4 +50,8 @@ export const kitchenApi = {
   delete: (id: number): Promise<ApiResponse<{ message: string }>> => {
     return apiClient.delete(`/kitchen/${id}`);
   },
+
+  reduceItemQuantity: (itemName: string, quantity: number): Promise<ApiResponse<{ message: string }>> => {
+    return apiClient.put('/kitchen/reduce-item', { item_name: itemName, quantity });
+  },
 };

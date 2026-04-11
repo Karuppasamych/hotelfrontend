@@ -6,6 +6,7 @@ import { PaymentModal } from './PaymentModal';
 import { CommonHeader } from '@/app/components/CommonHeader';
 import { billingApi } from '../utils/billingApi';
 import { draftApi } from '../utils/draftApi';
+import { adminApi } from '../utils/adminApi';
 import { toast } from 'sonner';
 
 export interface MenuItem {
@@ -61,6 +62,27 @@ export function BillingDashboard() {
     fetchDrafts();
   }, []);
   const [sentToKitchen, setSentToKitchen] = useState(false);
+  const [currentSavedOrderId, setCurrentSavedOrderId] = useState<string | null>(null);
+  const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, cgstPercent: 2.5, sgstPercent: 2.5 });
+
+  // Fetch billing settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await adminApi.getSettings();
+        const data = (response.data as any)?.data || response.data;
+        if (data) {
+          setBillingSettings({
+            serviceChargeEnabled: data.service_charge_enabled === 'true',
+            serviceChargePercent: parseFloat(data.service_charge_percent) || 5,
+            cgstPercent: parseFloat(data.cgst_percent) || 2.5,
+            sgstPercent: parseFloat(data.sgst_percent) || 2.5,
+          });
+        }
+      } catch { /* use defaults */ }
+    };
+    fetchSettings();
+  }, []);
 
   const addItemsToBill = (items: { name: string; price: number; quantity: number; code?: string }[]) => {
     setOrders(prev => {
@@ -108,6 +130,7 @@ export function BillingDashboard() {
     setNumberOfPersons('');
     setPaymentDetails(null);
     setSentToKitchen(false);
+    setCurrentSavedOrderId(null);
   };
 
   const handleCheckout = () => {
@@ -155,26 +178,52 @@ export function BillingDashboard() {
       return;
     }
     try {
-      const response = await draftApi.create({
+      const orderData = {
         mobile_number: mobileNumber,
         customer_name: customerName,
         order_type: orderType,
         table_number: tableNumber,
         number_of_persons: numberOfPersons,
         items: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category })),
-      });
+      };
+
+      let response;
+      if (currentSavedOrderId) {
+        // Update existing saved order
+        response = await draftApi.update(parseInt(currentSavedOrderId), orderData);
+        if ((response as any).success !== false) {
+          setDraftOrders(prev => prev.map(d => d.id === currentSavedOrderId ? {
+            ...d,
+            orders: [...orders],
+            mobileNumber,
+            customerName,
+            orderType,
+            tableNumber,
+            numberOfPersons,
+            timestamp: new Date()
+          } : d));
+          toast.success('Order updated successfully!');
+        }
+      } else {
+        // Create new saved order
+        response = await draftApi.create(orderData);
+        if ((response as any).success !== false) {
+          const newDraft: DraftOrder = {
+            id: String((response.data as any)?.id || Date.now()),
+            orders: [...orders],
+            mobileNumber,
+            customerName,
+            orderType,
+            tableNumber,
+            numberOfPersons,
+            timestamp: new Date()
+          };
+          setDraftOrders(prev => [...prev, newDraft]);
+          toast.success('Order saved successfully!');
+        }
+      }
+
       if ((response as any).success !== false) {
-        const newDraft: DraftOrder = {
-          id: String((response.data as any)?.id || Date.now()),
-          orders: [...orders],
-          mobileNumber,
-          customerName,
-          orderType,
-          tableNumber,
-          numberOfPersons,
-          timestamp: new Date()
-        };
-        setDraftOrders(prev => [...prev, newDraft]);
         setOrders([]);
         setMobileNumber('');
         setCustomerName('');
@@ -182,7 +231,7 @@ export function BillingDashboard() {
         setTableNumber('');
         setNumberOfPersons('');
         setSentToKitchen(false);
-        toast.success('Order saved successfully!');
+        setCurrentSavedOrderId(null);
       } else {
         toast.error('Failed to save order');
       }
@@ -207,8 +256,10 @@ export function BillingDashboard() {
     setOrderType(draft.orderType);
     setTableNumber(draft.tableNumber);
     setNumberOfPersons(draft.numberOfPersons);
+    setCurrentSavedOrderId(draftId);
+    setSentToKitchen(true);
     
-    // Remove draft from list
+    // Remove from list (will reappear on save)
     setDraftOrders(prev => prev.filter(d => d.id !== draftId));
   };
 
@@ -279,6 +330,8 @@ export function BillingDashboard() {
                 tableNumber={tableNumber}
                 orderType={orderType}
                 sentToKitchen={sentToKitchen}
+                onItemCancelled={() => setSentToKitchen(true)}
+                billingSettings={billingSettings}
               />
             </div>
           </div>
@@ -289,6 +342,7 @@ export function BillingDashboard() {
               orders={orders}
               onComplete={handlePaymentComplete}
               onCancel={() => setShowPayment(false)}
+              billingSettings={billingSettings}
             />
           )}
 
