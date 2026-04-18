@@ -6,7 +6,7 @@ interface PaymentModalProps {
   orders: OrderItem[];
   onComplete: (payment: PaymentDetails) => void;
   onCancel: () => void;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number };
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
 }
 
 
@@ -15,6 +15,7 @@ export function PaymentModal({ orders, onComplete, onCancel, billingSettings }: 
   const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
   const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
   const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
+  const enabledCustomCharges = (billingSettings?.customCharges || []).filter(c => c.enabled);
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -35,7 +36,8 @@ export function PaymentModal({ orders, onComplete, onCancel, billingSettings }: 
   const serviceCharge = SERVICE_CHARGE_ENABLED ? subtotal * SERVICE_CHARGE_RATE : 0;
   const cgst = subtotal * CGST_RATE;
   const sgst = subtotal * SGST_RATE;
-  const total = subtotal + serviceCharge + cgst + sgst;
+  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + subtotal * c.percent / 100, 0);
+  const total = subtotal + serviceCharge + cgst + sgst + customChargesTotal;
 
   const handlePayment = async () => {
     if (!paymentMethod) {

@@ -240,12 +240,12 @@ export const InventoryStatus: React.FC<InventoryStatusProps> = ({ selectedDishes
         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <button 
+              {/* <button 
                 className="group flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold bg-white text-stone-700 border-2 border-stone-200 hover:border-stone-300 hover:bg-stone-50 transition-all shadow-sm focus:ring-4 focus:ring-stone-100"
               >
                 <ShoppingCart className="h-4.5 w-4.5 text-stone-400 group-hover:text-stone-600 transition-colors" />
                 <span>Purchase List</span>
-              </button>
+              </button> */}
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl">
               <DialogHeader>

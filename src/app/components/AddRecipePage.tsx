@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Upload, Video, Image as ImageIcon, ChefHat, Clock, Users, Flame, Sparkles, BookOpen } from 'lucide-react';
 import { inventoryApi } from '../modules/utils/inventoryApi';
 import { InventoryItem } from '../types';
+import { toast } from 'sonner';
 
 interface Ingredient {
   name: string;
@@ -94,7 +95,48 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (!recipeName.trim()) {
+      toast.error('Please enter a recipe name');
+      return;
+    }
+    if (!description.trim()) {
+      toast.error('Please enter a description');
+      return;
+    }
+    if (!selectedCuisine) {
+      toast.error('Please select a cuisine');
+      return;
+    }
+    if (!prepTime.trim()) {
+      toast.error('Please enter prep time');
+      return;
+    }
+    if (!cookTime.trim()) {
+      toast.error('Please enter cook time');
+      return;
+    }
+    if (!servings.trim()) {
+      toast.error('Please enter servings');
+      return;
+    }
+    if (!price.trim() || parseFloat(price) <= 0) {
+      toast.error('Please enter a valid price');
+      return;
+    }
+
+    const validIngredients = ingredients.filter(ing => ing.name.trim() !== '' && ing.quantity.trim() !== '' && ing.unit.trim() !== '');
+    if (validIngredients.length === 0) {
+      toast.error('Please add at least one ingredient with name, quantity and unit');
+      return;
+    }
+
+    const validInstructions = instructions.filter(inst => inst.trim() !== '');
+    if (validInstructions.length === 0) {
+      toast.error('Please add at least one cooking instruction');
+      return;
+    }
+
     const newRecipe = {
       id: Date.now().toString(),
       name: recipeName,
@@ -107,8 +149,8 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
       servings,
       difficulty,
       price: parseFloat(price) || 0,
-      ingredients: ingredients.filter(ing => ing.name.trim() !== '' && ing.quantity.trim() !== ''),
-      instructions: instructions.filter(inst => inst.trim() !== ''),
+      ingredients: validIngredients,
+      instructions: validInstructions,
     };
 
     onAddRecipe(newRecipe);

@@ -20,6 +20,7 @@ interface BillingFormProps {
   draftOrders: DraftOrder[];
   onLoadDraft: (draftId: string) => void;
   onDeleteDraft: (draftId: string) => void;
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
 }
 
 interface StagedItem {
@@ -52,7 +53,8 @@ export function BillingForm({
   onNumberOfPersonsChange,
   draftOrders,
   onLoadDraft,
-  onDeleteDraft
+  onDeleteDraft,
+  billingSettings
 }: BillingFormProps) {
   const [itemName, setItemName] = useState('');
   const [productCode, setProductCode] = useState('');
@@ -201,13 +203,16 @@ export function BillingForm({
   };
 
   const stagedTotal = stagedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const CGST_RATE = 0.025;
-  const SGST_RATE = 0.025;
-  const SERVICE_CHARGE_RATE = 0.05;
-  const stagedServiceCharge = stagedTotal * SERVICE_CHARGE_RATE;
+  const SERVICE_CHARGE_ENABLED = billingSettings?.serviceChargeEnabled ?? true;
+  const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
+  const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
+  const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
+  const enabledCustomCharges = (billingSettings?.customCharges || []).filter(c => c.enabled);
+  const stagedServiceCharge = SERVICE_CHARGE_ENABLED ? stagedTotal * SERVICE_CHARGE_RATE : 0;
   const stagedCgst = stagedTotal * CGST_RATE;
   const stagedSgst = stagedTotal * SGST_RATE;
-  const stagedGrandTotal = stagedTotal + stagedServiceCharge + stagedCgst + stagedSgst;
+  const stagedCustomTotal = enabledCustomCharges.reduce((sum, c) => sum + stagedTotal * c.percent / 100, 0);
+  const stagedGrandTotal = stagedTotal + stagedServiceCharge + stagedCgst + stagedSgst + stagedCustomTotal;
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-orange-200">
@@ -569,29 +574,37 @@ export function BillingForm({
 
           {/* Preview Bill */}
           <div className="mt-4 border-t-2 border-orange-200 pt-4 space-y-2 bg-white p-4 rounded-lg border-2 border-orange-100">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-2">
               <FileText className="w-4 h-4 text-orange-600" />
               <h4 className="text-gray-800 font-bold text-sm">Bill Preview</h4>
             </div>
             <div className="flex justify-between text-sm text-gray-700">
               <span>Subtotal</span>
-              <span className="font-bold">₹{stagedTotal.toFixed(2)}</span>
+              <span className="font-bold">{stagedTotal.toFixed(2)}</span>
+            </div>
+            {SERVICE_CHARGE_ENABLED && (
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>{`Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)`}</span>
+                <span className="font-medium">{stagedServiceCharge.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>{`CGST (${(CGST_RATE * 100).toFixed(1)}%)`}</span>
+              <span className="font-medium">{stagedCgst.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm text-gray-500">
-              <span>Service Charge (5%)</span>
-              <span className="font-medium">₹{stagedServiceCharge.toFixed(2)}</span>
+              <span>{`SGST (${(SGST_RATE * 100).toFixed(1)}%)`}</span>
+              <span className="font-medium">{stagedSgst.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-sm text-gray-500">
-              <span>CGST (2.5%)</span>
-              <span className="font-medium">₹{stagedCgst.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-gray-500">
-              <span>SGST (2.5%)</span>
-              <span className="font-medium">₹{stagedSgst.toFixed(2)}</span>
-            </div>
+            {enabledCustomCharges.map(c => (
+              <div key={c.id} className="flex justify-between text-sm text-gray-500">
+                <span>{c.name} ({c.percent}%)</span>
+                <span className="font-medium">{(stagedTotal * c.percent / 100).toFixed(2)}</span>
+              </div>
+            ))}
             <div className="flex justify-between text-gray-900 pt-2 border-t-2 border-orange-300 text-lg">
               <span className="font-bold">Estimated Total</span>
-              <span className="font-bold text-orange-600">₹{stagedGrandTotal.toFixed(2)}</span>
+              <span className="font-bold text-orange-600">{stagedGrandTotal.toFixed(2)}</span>
             </div>
           </div>
 

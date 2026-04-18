@@ -17,7 +17,7 @@ interface OrderSummaryProps {
   orderType?: string;
   sentToKitchen?: boolean;
   onItemCancelled?: () => void;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number };
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
 }
 
 
@@ -44,12 +44,14 @@ export function OrderSummary({
   const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
   const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
   const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
+  const enabledCustomCharges = (billingSettings?.customCharges || []).filter(c => c.enabled);
 
   const subtotal = orders.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const serviceCharge = SERVICE_CHARGE_ENABLED ? subtotal * SERVICE_CHARGE_RATE : 0;
   const cgst = subtotal * CGST_RATE;
   const sgst = subtotal * SGST_RATE;
-  const total = subtotal + serviceCharge + cgst + sgst;
+  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + subtotal * c.percent / 100, 0);
+  const total = subtotal + serviceCharge + cgst + sgst + customChargesTotal;
 
   const handleCancelItem = async () => {
     if (!cancelConfirm) return;
@@ -171,9 +173,15 @@ export function OrderSummary({
               <span>SGST ({(SGST_RATE * 100).toFixed(1)}%)</span>
               <span className="font-medium">₹{sgst.toFixed(2)}</span>
             </div>
+            {enabledCustomCharges.map(c => (
+              <div key={c.id} className="flex justify-between text-gray-600">
+                <span>{c.name} ({c.percent}%)</span>
+                <span className="font-medium">{(subtotal * c.percent / 100).toFixed(2)}</span>
+              </div>
+            ))}
             <div className="flex justify-between text-gray-900 pt-3 border-t-2 border-orange-500 text-xl">
               <span className="font-bold">Total Amount</span>
-              <span className="font-bold text-orange-600">₹{total.toFixed(2)}</span>
+              <span className="font-bold text-orange-600">{total.toFixed(2)}</span>
             </div>
           </div>
 

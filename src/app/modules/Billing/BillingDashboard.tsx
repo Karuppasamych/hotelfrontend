@@ -63,7 +63,7 @@ export function BillingDashboard() {
   }, []);
   const [sentToKitchen, setSentToKitchen] = useState(false);
   const [currentSavedOrderId, setCurrentSavedOrderId] = useState<string | null>(null);
-  const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, cgstPercent: 2.5, sgstPercent: 2.5 });
+  const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, cgstPercent: 2.5, sgstPercent: 2.5, customCharges: [] as { id: string; name: string; percent: number; enabled: boolean }[] });
 
   // Fetch billing settings on mount
   useEffect(() => {
@@ -72,11 +72,16 @@ export function BillingDashboard() {
         const response = await adminApi.getSettings();
         const data = (response.data as any)?.data || response.data;
         if (data) {
+          let customCharges: any[] = [];
+          if (data.custom_charges) {
+            try { customCharges = JSON.parse(data.custom_charges); } catch {}
+          }
           setBillingSettings({
             serviceChargeEnabled: data.service_charge_enabled === 'true',
             serviceChargePercent: parseFloat(data.service_charge_percent) || 5,
             cgstPercent: parseFloat(data.cgst_percent) || 2.5,
             sgstPercent: parseFloat(data.sgst_percent) || 2.5,
+            customCharges,
           });
         }
       } catch { /* use defaults */ }
@@ -314,6 +319,7 @@ export function BillingDashboard() {
               draftOrders={draftOrders}
               onLoadDraft={loadDraft}
               onDeleteDraft={deleteDraft}
+              billingSettings={billingSettings}
             />
           </div>
 
