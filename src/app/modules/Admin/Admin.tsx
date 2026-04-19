@@ -4,6 +4,17 @@ import { adminApi, AdminSettings, CustomCharge } from '../utils/adminApi';
 import { Settings, Save, Percent, RefreshCw, Shield, LayoutDashboard, Package, ChefHat, Calculator, Receipt, ShoppingCart, History, UtensilsCrossed, Users, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 
+const hideSpinnerStyle = `
+  input[type=number].no-spinner::-webkit-outer-spin-button,
+  input[type=number].no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type=number].no-spinner {
+    -moz-appearance: textfield;
+  }
+`;
+
 const ROLES = [
   { value: 'admin', label: 'Admin', color: 'from-red-500 to-rose-600' },
   { value: 'manager', label: 'Manager', color: 'from-purple-500 to-indigo-600' },
@@ -152,6 +163,7 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <style>{hideSpinnerStyle}</style>
       <CommonHeader showStats={false} />
       <div className="max-w-5xl mx-auto p-6">
         <div className="flex items-center gap-3 mb-6">
@@ -203,8 +215,8 @@ export default function Admin() {
                     <div className="relative flex-1 max-w-[200px]">
                       <input type="number" step="0.1" min="0" max="100" value={settings.service_charge_percent}
                         onChange={(e) => setSettings(prev => ({ ...prev, service_charge_percent: e.target.value }))}
-                        className="w-full px-4 py-2.5 border-2 border-orange-300 rounded-lg focus:outline-none focus:border-orange-500 text-lg font-bold text-center" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                        className="no-spinner w-full px-4 py-2.5 pr-10 border-2 border-orange-300 rounded-lg focus:outline-none focus:border-orange-500 text-lg font-bold text-center" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold pointer-events-none">%</span>
                     </div>
                   </div>
                 )}
@@ -220,8 +232,8 @@ export default function Admin() {
                   <div className="relative flex-1 max-w-[200px]">
                     <input type="number" step="0.1" min="0" max="100" value={settings.cgst_percent}
                       onChange={(e) => setSettings(prev => ({ ...prev, cgst_percent: e.target.value }))}
-                      className="w-full px-4 py-2.5 border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg font-bold text-center" />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                      className="no-spinner w-full px-4 py-2.5 pr-10 border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-500 text-lg font-bold text-center" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold pointer-events-none">%</span>
                   </div>
                 </div>
               </div>
@@ -235,8 +247,8 @@ export default function Admin() {
                   <div className="relative flex-1 max-w-[200px]">
                     <input type="number" step="0.1" min="0" max="100" value={settings.sgst_percent}
                       onChange={(e) => setSettings(prev => ({ ...prev, sgst_percent: e.target.value }))}
-                      className="w-full px-4 py-2.5 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-lg font-bold text-center" />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                      className="no-spinner w-full px-4 py-2.5 pr-10 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-500 text-lg font-bold text-center" />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold pointer-events-none">%</span>
                   </div>
                 </div>
               </div>
@@ -265,8 +277,8 @@ export default function Admin() {
                       <div className="relative flex-1 max-w-[200px]">
                         <input type="number" step="0.1" min="0" max="100" value={charge.percent}
                           onChange={(e) => updateCustomChargePercent(charge.id, e.target.value)}
-                          className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-lg font-bold text-center" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                          className="no-spinner w-full px-4 py-2.5 pr-10 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-lg font-bold text-center" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold pointer-events-none">%</span>
                       </div>
                     </div>
                   )}
@@ -294,8 +306,8 @@ export default function Admin() {
                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">Percentage *</label>
                         <div className="relative">
                           <input type="number" step="0.1" min="0" max="100" value={newChargePercent} onChange={(e) => setNewChargePercent(e.target.value)}
-                            placeholder="0" className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-lg font-bold text-center" />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                            placeholder="0" className="no-spinner w-full px-4 py-2.5 pr-10 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-lg font-bold text-center" />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold pointer-events-none">%</span>
                         </div>
                       </div>
                     </div>

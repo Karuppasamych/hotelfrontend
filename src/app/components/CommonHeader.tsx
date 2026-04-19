@@ -1,4 +1,5 @@
-import { UtensilsCrossed, CheckCircle, LogOut, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
+import { UtensilsCrossed, CheckCircle, LogOut, TrendingUp, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import backgroundImage from '../../assets/pandianHotel.jpeg';
@@ -15,7 +16,10 @@ interface CommonHeaderProps {
 
 export function CommonHeader({ successMessage, showStats = false, statsComponent, orderHistoryStats = false, orderHistoryStatsData }: CommonHeaderProps) {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [showTotalRevenue, setShowTotalRevenue] = useState(isAdmin);
+  const [showMonthlyRevenue, setShowMonthlyRevenue] = useState(isAdmin);
 
   const handleLogout = () => {
     logout();
@@ -49,7 +53,7 @@ export function CommonHeader({ successMessage, showStats = false, statsComponent
                 <img src={logoWhite} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white drop-shadow-lg">Madurai Pandian Hotel</h1>
+                <h1 className="text-3xl font-bold text-white drop-shadow-lg">Madurai Pandiyan Hotel</h1>
                 <p className="text-orange-200 font-medium">Food Inventory Management System</p>
               </div>
             </div>
@@ -110,9 +114,16 @@ export function CommonHeader({ successMessage, showStats = false, statsComponent
             <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl p-6 shadow-xl text-white overflow-hidden relative hover:scale-105 hover:-translate-y-1 transition-transform">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
               <div className="relative z-10">
-                <p className="text-orange-100 mb-2 font-semibold">Total Revenue</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-orange-100 mb-2 font-semibold">Total Revenue</p>
+                  {isAdmin && (
+                    <button onClick={() => setShowTotalRevenue(!showTotalRevenue)} className="p-1 hover:bg-white/20 rounded-lg transition-all">
+                      {showTotalRevenue ? <Eye className="w-4 h-4 text-orange-100" /> : <EyeOff className="w-4 h-4 text-orange-100" />}
+                    </button>
+                  )}
+                </div>
                 <p className="text-4xl font-bold">
-                  ₹{orderHistoryStatsData.totalRevenue.toLocaleString('en-IN')}
+                  {showTotalRevenue ? `₹${orderHistoryStatsData.totalRevenue.toLocaleString('en-IN')}` : '₹ ••••••'}
                 </p>
                 <div className="mt-3 flex items-center gap-2 text-orange-100 text-sm">
                   <TrendingUp className="w-4 h-4" />
@@ -124,9 +135,16 @@ export function CommonHeader({ successMessage, showStats = false, statsComponent
             <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 shadow-xl text-white overflow-hidden relative hover:scale-105 hover:-translate-y-1 transition-transform">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
               <div className="relative z-10">
-                <p className="text-purple-100 mb-2 font-semibold">Monthly Revenue</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-purple-100 mb-2 font-semibold">Monthly Revenue</p>
+                  {isAdmin && (
+                    <button onClick={() => setShowMonthlyRevenue(!showMonthlyRevenue)} className="p-1 hover:bg-white/20 rounded-lg transition-all">
+                      {showMonthlyRevenue ? <Eye className="w-4 h-4 text-purple-100" /> : <EyeOff className="w-4 h-4 text-purple-100" />}
+                    </button>
+                  )}
+                </div>
                 <p className="text-4xl font-bold">
-                  ₹{orderHistoryStatsData.monthlyRevenue.toLocaleString('en-IN')}
+                  {showMonthlyRevenue ? `₹${orderHistoryStatsData.monthlyRevenue.toLocaleString('en-IN')}` : '₹ ••••••'}
                 </p>
                 <div className="mt-3 flex items-center gap-2 text-purple-100 text-sm">
                   <TrendingUp className="w-4 h-4" />

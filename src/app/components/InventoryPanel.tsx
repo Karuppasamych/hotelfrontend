@@ -136,8 +136,8 @@ export const InventoryPanel: React.FC<InventoryPanelProps> = ({ selectedDishes, 
     {
       headerName: '',
       field: 'id',
-      width: 50,
-      pinned: 'left',
+      width: 40,
+      maxWidth: 40,
       lockPosition: true,
       suppressMovable: true,
       sortable: false,
@@ -171,6 +171,7 @@ export const InventoryPanel: React.FC<InventoryPanelProps> = ({ selectedDishes, 
       headerName: 'Item',
       field: 'name',
       flex: 2,
+      minWidth: 80,
       sortable: true,
       filter: false,
       cellRenderer: (params: any) => (
@@ -178,9 +179,10 @@ export const InventoryPanel: React.FC<InventoryPanelProps> = ({ selectedDishes, 
       ),
     },
     {
-      headerName: 'Required',
+      headerName: 'Req',
       field: 'required',
       flex: 1,
+      minWidth: 70,
       sortable: true,
       filter: false,
       cellStyle: { textAlign: 'right' },
@@ -191,9 +193,10 @@ export const InventoryPanel: React.FC<InventoryPanelProps> = ({ selectedDishes, 
       ),
     },
     {
-      headerName: 'Available',
+      headerName: 'Avail',
       field: 'stock',
       flex: 1,
+      minWidth: 70,
       sortable: true,
       filter: false,
       cellStyle: { textAlign: 'right' },
@@ -206,7 +209,8 @@ export const InventoryPanel: React.FC<InventoryPanelProps> = ({ selectedDishes, 
     {
       headerName: 'Status',
       field: 'status',
-      width: 120,
+      width: 90,
+      maxWidth: 100,
       sortable: true,
       filter: false,
       cellStyle: { textAlign: 'center' },
@@ -275,7 +279,7 @@ export const InventoryPanel: React.FC<InventoryPanelProps> = ({ selectedDishes, 
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-hidden">
         {inventoryStatus.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-stone-400 p-8">
             <BarChart3 className="h-12 w-12 text-stone-200 mb-4" />
@@ -283,16 +287,36 @@ export const InventoryPanel: React.FC<InventoryPanelProps> = ({ selectedDishes, 
             <p className="text-sm mt-1">Add items to the menu to run inventory checks.</p>
           </div>
         ) : (
-          <AgGridDataTable
-            data={inventoryStatus}
-            columnDefs={columnDefs}
-            height="100%"
-            pagination={false}
-            rowHeight={45}
-            headerHeight={38}
-            emptyMessage="No inventory requirements"
-            emptyIcon="📦"
-          />
+          <div className="inventory-grid-compact h-full">
+            <style>{`
+              .inventory-grid-compact .ag-header-cell-text {
+                font-size: 10px !important;
+                font-weight: 700 !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.3px !important;
+              }
+              .inventory-grid-compact .ag-header-row {
+                font-size: 10px !important;
+              }
+              .inventory-grid-compact .ag-root-wrapper {
+                overflow-x: hidden !important;
+              }
+              .inventory-grid-compact .ag-body-horizontal-scroll {
+                display: none !important;
+              }
+            `}</style>
+            <AgGridDataTable
+              data={inventoryStatus}
+              columnDefs={columnDefs}
+              height="100%"
+              pagination={true}
+              paginationPageSize={5}
+              rowHeight={40}
+              headerHeight={32}
+              emptyMessage="No inventory requirements"
+              emptyIcon="📦"
+            />
+          </div>
         )}
       </div>
     </div>

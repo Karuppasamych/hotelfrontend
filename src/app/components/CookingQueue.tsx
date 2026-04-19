@@ -30,6 +30,8 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
   const [soldCounts, setSoldCounts] = useState<Record<string, Record<string, number>>>({});
   const today = new Date().toISOString().split('T')[0];
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set([today]));
+  const [filterStartDate, setFilterStartDate] = useState(today);
+  const [filterEndDate, setFilterEndDate] = useState(today);
 
   const toggleDate = (date: string) => {
     setExpandedDates(prev => {
@@ -64,13 +66,9 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
   }, [uniqueDates.join(',')]);
 
   const groupedByDate = useMemo(() => {
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    const cutoff = threeDaysAgo.toISOString().split('T')[0];
-
     const dateGroups: Record<string, { date: string; mealGroups: Record<string, ConfirmedMenu[]> }> = {};
     confirmedMenus
-      .filter(menu => menu.date >= cutoff)
+      .filter(menu => menu.date >= filterStartDate && menu.date <= filterEndDate)
       .forEach(menu => {
       if (!dateGroups[menu.date]) {
         dateGroups[menu.date] = { date: menu.date, mealGroups: {} };
@@ -84,7 +82,7 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
     return Object.values(dateGroups).sort((a, b) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
-  }, [confirmedMenus]);
+  }, [confirmedMenus, filterStartDate, filterEndDate]);
 
   const getMergedDishes = (menus: ConfirmedMenu[]) => {
     const dishMap = new Map<string, { dish: Dish; servings: number; menuId: string }>();
@@ -103,6 +101,92 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
 
   if (confirmedMenus.length === 0) return null;
 
+  const handlePrintDate = (group: { date: string; mealGroups: Record<string, ConfirmedMenu[]> }) => {
+    const dateStr = format(parseISO(group.date), 'MMMM dd, yyyy');
+    const dateSold = soldCounts[group.date] || {};
+
+    let mealSections = '';
+    MEAL_COLUMNS.forEach(meal => {
+      const menus = group.mealGroups[meal.id] || [];
+      const dishes = getMergedDishes(menus);
+      if (dishes.length === 0) return;
+
+      const totalServings = dishes.reduce((acc, d) => acc + d.servings, 0);
+      mealSections += `
+        <div class="meal-section">
+          <h3>${meal.label} <span class="meal-total">(${totalServings} servings)</span></h3>
+          <table>
+            <thead><tr><th>#</th><th>Dish Name</th><th>Cuisine</th><th class="text-right">Servings</th><th class="text-right">Sold</th><th class="text-right">Remaining</th></tr></thead>
+            <tbody>
+              ${dishes.map(({ dish, servings }, idx) => {
+                const sold = dateSold[dish.name] || 0;
+                const remaining = Math.max(0, servings - sold);
+                return `<tr>
+                  <td>${idx + 1}</td>
+                  <td class="bold">${dish.name}</td>
+                  <td>${dish.cuisine || '-'}</td>
+                  <td class="text-right">${servings}</td>
+                  <td class="text-right">${sold}</td>
+                  <td class="text-right bold ${remaining === 0 ? 'text-red' : ''}">${remaining}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+
+    const totalDishes = Object.values(group.mealGroups).reduce((acc, menus) => acc + getMergedDishes(menus).length, 0);
+    const totalServings = Object.values(group.mealGroups).reduce((acc, menus) => acc + getMergedDishes(menus).reduce((s, d) => s + d.servings, 0), 0);
+
+    const html = `
+      <html>
+      <head>
+        <title>Production Queue - ${dateStr}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #1a1a1a; }
+          .header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid #e5e7eb; padding-bottom: 16px; }
+          .header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+          .header h2 { font-size: 16px; font-weight: 600; color: #374151; margin-top: 4px; }
+          .header p { font-size: 12px; color: #6b7280; margin-top: 2px; }
+          .meal-section { margin-bottom: 20px; }
+          .meal-section h3 { font-size: 14px; font-weight: 700; color: #1f2937; margin-bottom: 8px; padding: 6px 10px; background: #f3f4f6; border-radius: 6px; }
+          .meal-total { font-weight: 400; color: #6b7280; font-size: 12px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+          th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #374151; padding: 8px 10px; text-align: left; border-bottom: 2px solid #d1d5db; background: #f9fafb; }
+          td { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; font-size: 12px; }
+          tr:nth-child(even) { background: #f9fafb; }
+          .text-right { text-align: right; }
+          .bold { font-weight: 700; }
+          .text-red { color: #dc2626; }
+          .footer { margin-top: 20px; padding-top: 12px; border-top: 2px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; }
+          @media print { body { padding: 15px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Madurai Pandiyan Hotel</h1>
+          <h2>Production Queue</h2>
+          <p>${dateStr} &bull; ${totalDishes} dishes &bull; ${totalServings} total servings</p>
+        </div>
+        ${mealSections}
+        <div class="footer">
+          <span>Total: ${totalDishes} dishes, ${totalServings} servings</span>
+          <span>Printed: ${new Date().toLocaleString('en-IN')}</span>
+        </div>
+        <script>window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; }<\/script>
+      </body>
+      </html>
+    `;
+
+    const win = window.open('', '_blank', 'width=800,height=600');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  };
+
   return (
     <div className="mt-8 mb-12">
       <div className="flex items-center justify-between mb-6">
@@ -114,6 +198,28 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
             <h2 className="text-2xl font-bold text-stone-800 tracking-tight">Production Queue</h2>
             <p className="text-sm text-stone-500 font-medium">Kitchen orders grouped by meal time</p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-stone-400" />
+          <input
+            type="date"
+            value={filterStartDate}
+            onChange={(e) => {
+              setFilterStartDate(e.target.value);
+              if (e.target.value > filterEndDate) setFilterEndDate(e.target.value);
+            }}
+            className="px-3 py-1.5 text-sm border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <span className="text-stone-400 text-sm">to</span>
+          <input
+            type="date"
+            value={filterEndDate}
+            onChange={(e) => {
+              setFilterEndDate(e.target.value);
+              if (e.target.value < filterStartDate) setFilterStartDate(e.target.value);
+            }}
+            className="px-3 py-1.5 text-sm border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
         </div>
       </div>
 
@@ -152,7 +258,7 @@ export const CookingQueue: React.FC<CookingQueueProps> = ({ confirmedMenus, onEd
                       <Edit3 className="h-3.5 w-3.5" />
                       Edit
                     </button>
-                    <button className="text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 p-1.5 rounded-lg transition-all" title="Print">
+                    <button onClick={() => handlePrintDate(group)} className="text-stone-400 hover:text-stone-600 hover:bg-stone-200/50 p-1.5 rounded-lg transition-all" title="Print">
                       <Printer className="h-4 w-4" />
                     </button>
                   </div>

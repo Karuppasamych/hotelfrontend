@@ -3,8 +3,9 @@ import { CommonHeader } from '../../components/CommonHeader';
 import { AgGridDataTable } from '../../components/AgGridDataTable';
 import { purchaseListApi } from '../utils/purchaseListApi';
 import { ColDef } from 'ag-grid-community';
-import { Trash2, ShoppingCart, Calendar, Filter, CheckCircle2, Tag, Printer } from 'lucide-react';
+import { Trash2, ShoppingCart, Calendar, Filter, CheckCircle2, Tag, Printer, Plus, Search, Check, X, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import { inventoryApi } from '../utils/inventoryApi';
 
 interface PurchaseItem {
   id: number;
@@ -28,6 +29,19 @@ export default function PurchaseList() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [nameSearch, setNameSearch] = useState('');
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemQty, setNewItemQty] = useState('');
+  const [newItemUnit, setNewItemUnit] = useState('kg');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState<{ id: string; name: string; unit: string; stock: number }[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [editItem, setEditItem] = useState<PurchaseItem | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editQty, setEditQty] = useState('');
+  const [editUnit, setEditUnit] = useState('kg');
+  const [saving, setSaving] = useState(false);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -46,6 +60,15 @@ export default function PurchaseList() {
   };
 
   useEffect(() => { fetchItems(); }, [appliedDate]);
+
+  // Fetch inventory for search dropdown
+  useEffect(() => {
+    inventoryApi.getAll().then(res => {
+      if (res.success && res.data) {
+        setInventoryItems(res.data.map(i => ({ id: String(i.id), name: i.name, unit: i.unit, stock: parseFloat(String(i.quantity_available)) || 0 })));
+      }
+    }).catch(() => {});
+  }, []);
 
   const handleDelete = async (id: number) => {
     try {
@@ -153,6 +176,86 @@ export default function PurchaseList() {
       printWindow.document.write(html);
       printWindow.document.close();
     }
+  };
+
+  const filteredInventoryItems = useMemo(() => {
+    if (!nameSearch.trim()) return inventoryItems;
+    return inventoryItems.filter(i => i.name.toLowerCase().includes(nameSearch.toLowerCase()));
+  }, [nameSearch, inventoryItems]);
+
+  const handleSelectInventoryItem = (item: { id: string; name: string; unit: string; stock: number }) => {
+    setNewItemName(item.name);
+    setNewItemUnit(item.unit);
+    setNameSearch(item.name);
+    setShowDropdown(false);
+  };
+
+  const handleNameInputChange = (value: string) => {
+    setNameSearch(value);
+    setNewItemName(value);
+    setShowDropdown(true);
+  };
+
+  const handleAddPurchaseItem = async () => {
+    if (!newItemName.trim() || !newItemQty) {
+      toast.error('Please enter item name and quantity');
+      return;
+    }
+    setAdding(true);
+    try {
+      const response = await purchaseListApi.create({
+        item_name: newItemName.trim(),
+        quantity: parseFloat(newItemQty),
+        unit: newItemUnit,
+        date: appliedDate || new Date().toISOString().split('T')[0],
+      });
+      if ((response as any).success !== false) {
+        toast.success(`"${newItemName.trim()}" added to purchase list`);
+        setNewItemName('');
+        setNewItemQty('');
+        setNewItemUnit('kg');
+        setNameSearch('');
+        setShowAddItem(false);
+        fetchItems();
+      } else {
+        toast.error('Failed to add item');
+      }
+    } catch {
+      toast.error('Error adding item');
+    }
+    setAdding(false);
+  };
+
+  const openEditModal = (item: PurchaseItem) => {
+    setEditItem(item);
+    setEditName(item.item_name);
+    setEditQty(String(item.quantity));
+    setEditUnit(item.unit);
+  };
+
+  const handleUpdateItem = async () => {
+    if (!editItem || !editName.trim() || !editQty) {
+      toast.error('Please fill all fields');
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await purchaseListApi.update(editItem.id, {
+        item_name: editName.trim(),
+        quantity: parseFloat(editQty),
+        unit: editUnit,
+      });
+      if ((response as any).success !== false) {
+        toast.success('Item updated');
+        setEditItem(null);
+        fetchItems();
+      } else {
+        toast.error('Failed to update item');
+      }
+    } catch {
+      toast.error('Error updating item');
+    }
+    setSaving(false);
   };
 
   const categories = useMemo(() => {
@@ -325,9 +428,18 @@ export default function PurchaseList() {
     },
     {
       headerName: 'Actions',
-      width: 100,
+      width: 120,
       cellRenderer: (params: any) => (
-        <div className="flex gap-2 justify-center h-full items-center">
+        <div className="flex gap-1 justify-center h-full items-center">
+          {params.data.status === 'pending' && (
+            <button
+              onClick={() => openEditModal(params.data)}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200 hover:scale-110"
+              title="Edit"
+            >
+              <Pencil className="size-4" />
+            </button>
+          )}
           <button
             onClick={() => handleDelete(params.data.id)}
             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 hover:scale-110"
@@ -380,6 +492,13 @@ export default function PurchaseList() {
                 Mark as Purchased ({pendingSelected.length})
               </button>
             )}
+            <button
+              onClick={() => setShowAddItem(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm"
+            >
+              <Plus className="h-4 w-4" />
+              Add Item
+            </button>
             <button
               onClick={handlePrintSelected}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all text-sm"
@@ -440,6 +559,85 @@ export default function PurchaseList() {
           </div>
         </div>
 
+        {/* Add Item Section */}
+        {showAddItem && (
+          <div className="bg-white rounded-xl shadow-sm border-2 border-orange-200 p-4 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Plus className="h-5 w-5 text-orange-600" />
+                <h3 className="font-bold text-stone-800 text-sm">Add Purchase Item</h3>
+              </div>
+              <button onClick={() => { setShowAddItem(false); setNameSearch(''); setNewItemName(''); setNewItemQty(''); setNewItemUnit('kg'); setShowDropdown(false); }}
+                className="p-1.5 hover:bg-stone-100 rounded-lg transition-colors">
+                <X className="w-4 h-4 text-stone-500" />
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+                <input
+                  type="text"
+                  placeholder="Search inventory or type new item..."
+                  value={nameSearch}
+                  onChange={(e) => handleNameInputChange(e.target.value)}
+                  onFocus={() => setShowDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                  className="w-full pl-10 pr-4 py-2.5 text-sm border-2 border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400"
+                  autoFocus
+                />
+                {showDropdown && nameSearch.trim() && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-stone-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    {filteredInventoryItems.length > 0 ? (
+                      filteredInventoryItems.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onMouseDown={() => handleSelectInventoryItem(item)}
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-orange-50 flex justify-between items-center border-b border-stone-100 last:border-0"
+                        >
+                          <span className="font-medium text-stone-800">{item.name}</span>
+                          <span className="text-xs text-stone-400">{item.stock.toFixed(1)} {item.unit}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-stone-500">
+                        No match — <span className="font-semibold text-orange-600">"{nameSearch}"</span> will be added as new
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <input
+                type="number"
+                placeholder="Qty"
+                value={newItemQty}
+                onChange={(e) => setNewItemQty(e.target.value)}
+                className="w-24 px-3 py-2.5 text-sm border-2 border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-center font-bold"
+              />
+              <select
+                value={newItemUnit}
+                onChange={(e) => setNewItemUnit(e.target.value)}
+                className="w-24 px-3 py-2.5 text-sm border-2 border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 bg-white"
+              >
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="L">L</option>
+                <option value="ml">ml</option>
+                <option value="pcs">pcs</option>
+                <option value="box">box</option>
+              </select>
+              <button
+                onClick={handleAddPurchaseItem}
+                disabled={!newItemName.trim() || !newItemQty || adding}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {adding ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                Add
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Grid */}
         <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden p-4">
           <AgGridDataTable
@@ -451,6 +649,57 @@ export default function PurchaseList() {
             paginationPageSize={10}
           />
         </div>
+
+        {/* Edit Item Modal */}
+        {editItem && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Pencil className="w-5 h-5" /> Edit Purchase Item</h3>
+                <button onClick={() => setEditItem(null)} className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-all">
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Item Name</label>
+                  <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                    className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm font-medium" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Quantity</label>
+                    <input type="number" step="any" min="0" value={editQty} onChange={(e) => setEditQty(e.target.value)}
+                      className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm font-bold text-center" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Unit</label>
+                    <select value={editUnit} onChange={(e) => setEditUnit(e.target.value)}
+                      className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm bg-white">
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="L">L</option>
+                      <option value="ml">ml</option>
+                      <option value="pcs">pcs</option>
+                      <option value="box">box</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 px-6 pb-6">
+                <button onClick={() => setEditItem(null)}
+                  className="flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-all font-medium">
+                  Cancel
+                </button>
+                <button onClick={handleUpdateItem} disabled={saving}
+                  className="flex-1 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-lg font-bold flex items-center justify-center gap-2 transition-all">
+                  {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check className="w-4 h-4" />}
+                  {saving ? 'Saving...' : 'Update Item'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -143,7 +143,7 @@ export function OrderSummary({
                 <div className="flex items-center gap-2">
                   <span className="w-10 text-center text-gray-900 font-bold text-lg">{item.quantity}</span>
                   <button
-                    onClick={() => { setCancelConfirm(item); setCancelQty(item.quantity); setCancelReason(''); setCancelOtherReason(''); }}
+                    onClick={() => { setCancelConfirm(item); setCancelQty(1); setCancelReason(''); setCancelOtherReason(''); }}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
                     title="Cancel item"
                   >
@@ -186,7 +186,7 @@ export function OrderSummary({
           </div>
 
           <button
-            onClick={onSaveDraft}
+            onClick={() => onSaveDraft()}
             disabled={!sentToKitchen}
             className={`w-full mt-4 px-6 py-3 rounded-lg transition-all shadow-lg font-bold flex items-center justify-center gap-2 ${
               sentToKitchen
@@ -229,14 +229,13 @@ export function OrderSummary({
                     >
                       −
                     </button>
-                    <span className="w-12 text-center text-gray-900 font-bold text-xl">{cancelQty}</span>
+                    <span className="text-center text-gray-900 font-bold text-xl px-2">{cancelQty} <span className="text-sm font-medium text-gray-400">of {cancelConfirm.quantity}</span></span>
                     <button
                       onClick={() => setCancelQty(Math.min(cancelConfirm.quantity, cancelQty + 1))}
                       className="w-9 h-9 bg-white border-2 border-orange-300 rounded-lg hover:bg-orange-100 transition-colors flex items-center justify-center text-orange-600 font-bold text-lg"
                     >
                       +
                     </button>
-                    <span className="text-sm text-gray-400">of {cancelConfirm.quantity}</span>
                   </div>
                   <p className="text-sm text-gray-500">₹{cancelConfirm.price.toFixed(2)} × {cancelQty} = <span className="font-bold text-orange-600">₹{(cancelConfirm.price * cancelQty).toFixed(2)}</span></p>
                 </div>
@@ -244,7 +243,7 @@ export function OrderSummary({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Reason for cancellation *</label>
                 <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-orange-50 ${cancelReason === 'prepared' ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}">
+                  <label className={`flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-orange-50 ${cancelReason === 'prepared' ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
                     <input
                       type="radio"
                       name="cancelReason"
@@ -257,7 +256,7 @@ export function OrderSummary({
                       <p className="text-[10px] text-orange-600 font-medium">Servings will be reduced from production queue</p>
                     </div>
                   </label>
-                  <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-green-50 ${cancelReason === 'not_prepared' ? 'border-green-400 bg-green-50' : 'border-gray-200'}">
+                  <label className={`flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-green-50 ${cancelReason === 'not_prepared' ? 'border-green-400 bg-green-50' : 'border-gray-200'}`}>
                     <input
                       type="radio"
                       name="cancelReason"
@@ -267,7 +266,7 @@ export function OrderSummary({
                     />
                     <span className="text-sm font-medium text-gray-800">Not Prepared and cancelled</span>
                   </label>
-                  <label className="flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50 ${cancelReason === 'others' ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}">
+                  <label className={`flex items-center gap-3 p-2.5 rounded-lg border-2 cursor-pointer transition-all hover:bg-gray-50 ${cancelReason === 'others' ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
                     <input
                       type="radio"
                       name="cancelReason"

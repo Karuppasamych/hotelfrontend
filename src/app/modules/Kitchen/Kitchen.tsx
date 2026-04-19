@@ -12,7 +12,7 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800 border-red-300', cardBorder: 'border-red-400', headerBg: 'from-red-500 to-rose-600', order: 5 },
 };
 
-const STATUSES = ['pending', 'preparing', 'ready', 'served', 'cancelled'] as const;
+const STATUSES = ['pending', 'preparing', 'ready','cancelled'] as const; //served
 const ACTIVE_STATUSES = ['pending', 'preparing', 'ready', 'served'] as const;
 const POLL_INTERVAL = 5000;
 
@@ -280,6 +280,16 @@ export default function Kitchen() {
                         <XCircle className="w-4 h-4" />
                         <span className="text-xs font-bold">Cancelled</span>
                       </div>
+                    ) : order.status === 'ready' ? (
+                      <span className="flex-1 text-center text-xs font-semibold text-green-600 flex items-center justify-center gap-1.5 py-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Complete
+                      </span>
+                    ) : order.status === 'served' ? (
+                      <span className="flex-1 text-center text-xs font-semibold text-green-600 flex items-center justify-center gap-1.5 py-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Completed
+                      </span>
                     ) : (
                       <>
                         {nextStatus && (
@@ -291,27 +301,15 @@ export default function Kitchen() {
                             Mark {STATUS_CONFIG[nextStatus].label}
                           </button>
                         )}
-                        {order.status === 'served' && (
-                          <span className="flex-1 text-center text-xs font-semibold text-green-600">✓ Completed</span>
-                        )}
-                        {order.status !== 'served' && (
-                          <button
-                            onClick={() => handleCancel(order.id)}
-                            className="p-2 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
-                            title="Cancel Order"
-                          >
-                            <XCircle className="w-3.5 h-3.5 text-red-500" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setDeleteConfirm({ id: order.id, orderNumber: order.order_number })}
+                          className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete Order"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        </button>
                       </>
                     )}
-                    <button
-                      onClick={() => setDeleteConfirm({ id: order.id, orderNumber: order.order_number })}
-                      className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete Order"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                    </button>
                   </div>
                 </div>
               );

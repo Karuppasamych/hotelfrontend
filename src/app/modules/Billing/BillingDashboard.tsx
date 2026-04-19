@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BillingForm } from './BillingForm';
 import { OrderSummary } from './OrderSummary';
 import { Receipt } from './Receipt';
@@ -39,6 +39,12 @@ export interface DraftOrder {
 
 export function BillingDashboard() {
   const [orders, setOrders] = useState<OrderItem[]>([]);
+  const ordersRef = useRef<OrderItem[]>([]);
+
+  // Keep ref in sync with orders state
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [mobileNumber, setMobileNumber] = useState('');
@@ -177,8 +183,9 @@ export function BillingDashboard() {
     }
   };
 
-  const saveDraft = async () => {
-    if (orders.length === 0) {
+  const saveDraft = async (itemsFromKitchen?: { name: string; price: number; quantity: number; category: string }[]) => {
+    const itemsToSave = itemsFromKitchen || orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category }));
+    if (itemsToSave.length === 0) {
       toast.error('Cannot save empty order');
       return;
     }
@@ -189,33 +196,44 @@ export function BillingDashboard() {
         order_type: orderType,
         table_number: tableNumber,
         number_of_persons: numberOfPersons,
-        items: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category })),
+        items: itemsToSave,
       };
 
       let response;
-      if (currentSavedOrderId) {
-        // Update existing saved order
-        response = await draftApi.update(parseInt(currentSavedOrderId), orderData);
-        if ((response as any).success !== false) {
-          setDraftOrders(prev => prev.map(d => d.id === currentSavedOrderId ? {
-            ...d,
-            orders: [...orders],
+      const numericId = Number(currentSavedOrderId);
+      if (currentSavedOrderId && !isNaN(numericId)) {
+        response = await draftApi.update(numericId, orderData);
+      } else {
+        response = await draftApi.create(orderData);
+      }
+
+      if (response.success) {
+        if (currentSavedOrderId && !isNaN(numericId)) {
+          // Update: re-add to draft list with updated data
+          const updatedDraft: DraftOrder = {
+            id: currentSavedOrderId,
+            orders: itemsToSave.map(i => ({ id: Date.now().toString() + Math.random(), name: i.name, price: i.price, quantity: i.quantity, category: i.category })),
             mobileNumber,
             customerName,
             orderType,
             tableNumber,
             numberOfPersons,
             timestamp: new Date()
-          } : d));
+          };
+          setDraftOrders(prev => {
+            const exists = prev.find(d => d.id === currentSavedOrderId);
+            if (exists) {
+              return prev.map(d => d.id === currentSavedOrderId ? updatedDraft : d);
+            }
+            return [...prev, updatedDraft];
+          });
           toast.success('Order updated successfully!');
-        }
-      } else {
-        // Create new saved order
-        response = await draftApi.create(orderData);
-        if ((response as any).success !== false) {
+        } else {
+          const newId = String((response.data as any)?.data?.id || (response.data as any)?.id || Date.now());
+          setCurrentSavedOrderId(newId);
           const newDraft: DraftOrder = {
-            id: String((response.data as any)?.id || Date.now()),
-            orders: [...orders],
+            id: newId,
+            orders: itemsToSave.map(i => ({ id: Date.now().toString() + Math.random(), name: i.name, price: i.price, quantity: i.quantity, category: i.category })),
             mobileNumber,
             customerName,
             orderType,
@@ -226,21 +244,22 @@ export function BillingDashboard() {
           setDraftOrders(prev => [...prev, newDraft]);
           toast.success('Order saved successfully!');
         }
-      }
-
-      if ((response as any).success !== false) {
-        setOrders([]);
-        setMobileNumber('');
-        setCustomerName('');
-        setOrderType('dine-in');
-        setTableNumber('');
-        setNumberOfPersons('');
-        setSentToKitchen(false);
-        setCurrentSavedOrderId(null);
+        // Only clear order if user explicitly saved (not from kitchen auto-save)
+        if (!itemsFromKitchen) {
+          setOrders([]);
+          setMobileNumber('');
+          setCustomerName('');
+          setOrderType('dine-in');
+          setTableNumber('');
+          setNumberOfPersons('');
+          setSentToKitchen(false);
+          setCurrentSavedOrderId(null);
+        }
       } else {
-        toast.error('Failed to save order');
+        toast.error('Failed to save order: ' + (response.error || ''));
       }
-    } catch {
+    } catch (err) {
+      console.error('Error saving order:', err);
       toast.error('Error saving order');
     }
   };
@@ -319,6 +338,11 @@ export function BillingDashboard() {
               draftOrders={draftOrders}
               onLoadDraft={loadDraft}
               onDeleteDraft={deleteDraft}
+              onSaveDraft={saveDraft}
+              onDraftCreated={(draft) => {
+                setDraftOrders(prev => [...prev, draft]);
+                setCurrentSavedOrderId(draft.id);
+              }}
               billingSettings={billingSettings}
             />
           </div>
@@ -336,7 +360,28 @@ export function BillingDashboard() {
                 tableNumber={tableNumber}
                 orderType={orderType}
                 sentToKitchen={sentToKitchen}
-                onItemCancelled={() => setSentToKitchen(true)}
+                onItemCancelled={() => {
+                  setSentToKitchen(true);
+                  // Auto-update saved order after cancellation
+                  const savedId = Number(currentSavedOrderId);
+                  if (currentSavedOrderId && !isNaN(savedId)) {
+                    setTimeout(async () => {
+                      const latestOrders = ordersRef.current;
+                      if (latestOrders.length > 0) {
+                        try {
+                          await draftApi.update(savedId, {
+                            mobile_number: mobileNumber,
+                            customer_name: customerName,
+                            order_type: orderType,
+                            table_number: tableNumber,
+                            number_of_persons: numberOfPersons,
+                            items: latestOrders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category })),
+                          });
+                        } catch { /* silent */ }
+                      }
+                    }, 100);
+                  }
+                }}
                 billingSettings={billingSettings}
               />
             </div>
