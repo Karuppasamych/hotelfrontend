@@ -174,6 +174,14 @@ export function BillingDashboard() {
     });
 
     if (response.success && response.data) {
+      // Delete saved order from database if it was loaded
+      if (currentSavedOrderId) {
+        try {
+          await draftApi.delete(parseInt(currentSavedOrderId));
+          setDraftOrders(prev => prev.filter(d => d.id !== currentSavedOrderId));
+        } catch { /* ignore */ }
+        setCurrentSavedOrderId(null);
+      }
       setPaymentDetails(payment);
       setCurrentBillNumber(response.data.billNumber);
       setShowPayment(false);
@@ -264,11 +272,10 @@ export function BillingDashboard() {
     }
   };
 
-  const loadDraft = (draftId: string) => {
+  const loadDraft = async (draftId: string) => {
     const draft = draftOrders.find(d => d.id === draftId);
     if (!draft) return;
 
-    // If current order has items, confirm before loading
     if (orders.length > 0) {
       const confirm = window.confirm('Current order will be replaced. Do you want to continue?');
       if (!confirm) return;
@@ -280,10 +287,13 @@ export function BillingDashboard() {
     setOrderType(draft.orderType);
     setTableNumber(draft.tableNumber);
     setNumberOfPersons(draft.numberOfPersons);
-    setCurrentSavedOrderId(draftId);
     setSentToKitchen(true);
-    
-    // Remove from list (will reappear on save)
+    setCurrentSavedOrderId(null);
+
+    // Delete from database and remove from list
+    try {
+      await draftApi.delete(parseInt(draftId));
+    } catch { /* ignore */ }
     setDraftOrders(prev => prev.filter(d => d.id !== draftId));
   };
 
