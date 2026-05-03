@@ -48,7 +48,7 @@ class ApiClient {
       if (!response.ok) {
         return {
           success: false,
-          error: data.message || 'Request failed',
+          error: data.error || data.message || 'Request failed',
         };
       }
 

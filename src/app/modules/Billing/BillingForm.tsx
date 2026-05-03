@@ -3,11 +3,13 @@ import { Plus, Package, Phone, ShoppingBag, Trash2, ShoppingCart, X, ChevronUp, 
 import { DraftOrder } from './BillingDashboard';
 import { recipeApi } from '../utils/recipeApi';
 import { kitchenApi } from '../utils/kitchenApi';
+import { apiClient } from '../utils/apiClient';
 import { draftApi } from '../utils/draftApi';
 import { toast } from 'sonner';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface BillingFormProps {
-  onAddItems: (items: { name: string; price: number; quantity: number; code?: string }[]) => void;
+  onAddItems: (items: { name: string; price: number; quantity: number; code?: string; taxApplicable?: boolean }[]) => void;
   mobileNumber: string;
   customerName: string;
   orderType: 'dine-in' | 'parcel';
@@ -23,7 +25,7 @@ interface BillingFormProps {
   onDeleteDraft: (draftId: string) => void;
   onSaveDraft?: (items?: { name: string; price: number; quantity: number; category: string }[]) => void;
   onDraftCreated?: (draft: DraftOrder) => void;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
 }
 
 interface StagedItem {
@@ -33,6 +35,7 @@ interface StagedItem {
   quantity: number;
   code?: string;
   category: string;
+  taxApplicable: boolean;
 }
 
 interface ProductSuggestion {
@@ -40,6 +43,8 @@ interface ProductSuggestion {
   price: number;
   code: string;
   category: string;
+  taxApplicable: boolean;
+  availableQty?: number;
 }
 
 export function BillingForm({ 
@@ -61,6 +66,7 @@ export function BillingForm({
   onDraftCreated,
   billingSettings
 }: BillingFormProps) {
+  const { user } = useAuth();
   const [itemName, setItemName] = useState('');
   const [productCode, setProductCode] = useState('');
   const [price, setPrice] = useState('');
@@ -73,6 +79,7 @@ export function BillingForm({
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const [isProductSelected, setIsProductSelected] = useState(false);
+  const [selectedTaxApplicable, setSelectedTaxApplicable] = useState(true);
   const [draftSearchQuery, setDraftSearchQuery] = useState('');
   const [showKOT, setShowKOT] = useState(false);
   const [kotItems, setKotItems] = useState<StagedItem[]>([]);
@@ -80,16 +87,55 @@ export function BillingForm({
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    recipeApi.getAll().then(response => {
-      const recipes = (response.data as any)?.data || response.data || [];
-      const mapped: ProductSuggestion[] = recipes.map((r: any) => ({
-        name: r.name,
-        price: parseFloat(r.price) || 0,
-        code: `R${String(r.id).padStart(3, '0')}`,
-        category: r.category || 'Uncategorized',
-      }));
-      setProductSuggestions(mapped);
-    }).catch(() => {});
+    const fetchData = async () => {
+      try {
+        const response = await recipeApi.getAll();
+        const recipes = (response.data as any)?.data || response.data || [];
+        const mapped: ProductSuggestion[] = recipes.map((r: any) => ({
+          name: r.name,
+          price: parseFloat(r.price) || 0,
+          code: `R${String(r.id).padStart(3, '0')}`,
+          category: r.category || 'Uncategorized',
+          taxApplicable: r.tax_applicable !== 0 && r.tax_applicable !== false,
+        }));
+        setProductSuggestions(mapped);
+      } catch { /* ignore */ }
+
+      // Fetch availability separately
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const [menusRes, soldRes] = await Promise.all([
+          apiClient.get<any>(`/confirmed-menus/${today}`),
+          apiClient.get<Record<string, number>>(`/billing/sold/${today}`),
+        ]);
+        const menuData = (menusRes.data as any)?.data || menusRes.data;
+        const sold = (soldRes.data as any) || {};
+        const confirmedMap: Record<string, number> = {};
+        if (menuData) {
+          const dishes = menuData.dishes || [];
+          dishes.forEach((d: any) => {
+            const name = d.name || d.dish?.name || '';
+            const servings = d.servings || 0;
+            if (name) confirmedMap[name] = (confirmedMap[name] || 0) + servings;
+          });
+          if (Array.isArray(menuData)) {
+            menuData.filter((m: any) => m.date === today).forEach((menu: any) => {
+              (menu.dishes || []).forEach((d: any) => {
+                const name = d.dish?.name || d.name || '';
+                const servings = d.servings || 0;
+                if (name) confirmedMap[name] = (confirmedMap[name] || 0) + servings;
+              });
+            });
+          }
+        }
+        setProductSuggestions(prev => prev.map(p => {
+          const confirmed = confirmedMap[p.name] || 0;
+          const soldQty = sold[p.name] || 0;
+          return { ...p, availableQty: confirmed > 0 ? Math.max(0, confirmed - soldQty) : undefined };
+        }));
+      } catch { /* ignore */ }
+    };
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -111,6 +157,7 @@ export function BillingForm({
     setPrice(suggestion.price.toString());
     setProductCode(suggestion.code);
     setSelectedCategory(suggestion.category);
+    setSelectedTaxApplicable(suggestion.taxApplicable);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
     setIsProductSelected(true);
@@ -166,6 +213,7 @@ export function BillingForm({
       quantity: quantityNum,
       code: productCode || undefined,
       category: selectedCategory || 'Uncategorized',
+      taxApplicable: selectedTaxApplicable,
 
     };
 
@@ -208,15 +256,19 @@ export function BillingForm({
   };
 
   const stagedTotal = stagedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const taxableTotal = stagedItems.filter(i => i.taxApplicable).reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const SERVICE_CHARGE_ENABLED = billingSettings?.serviceChargeEnabled ?? true;
+  const SERVICE_CHARGE_PARCEL_EXEMPT = billingSettings?.serviceChargeParcelExempt ?? true;
   const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
+  const isParcel = orderType === 'parcel';
+  const applyServiceCharge = SERVICE_CHARGE_ENABLED && !(isParcel && SERVICE_CHARGE_PARCEL_EXEMPT);
   const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
   const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
   const enabledCustomCharges = (billingSettings?.customCharges || []).filter(c => c.enabled);
-  const stagedServiceCharge = SERVICE_CHARGE_ENABLED ? stagedTotal * SERVICE_CHARGE_RATE : 0;
-  const stagedCgst = stagedTotal * CGST_RATE;
-  const stagedSgst = stagedTotal * SGST_RATE;
-  const stagedCustomTotal = enabledCustomCharges.reduce((sum, c) => sum + stagedTotal * c.percent / 100, 0);
+  const stagedServiceCharge = applyServiceCharge ? taxableTotal * SERVICE_CHARGE_RATE : 0;
+  const stagedCgst = taxableTotal * CGST_RATE;
+  const stagedSgst = taxableTotal * SGST_RATE;
+  const stagedCustomTotal = enabledCustomCharges.reduce((sum, c) => sum + taxableTotal * c.percent / 100, 0);
   const stagedGrandTotal = stagedTotal + stagedServiceCharge + stagedCgst + stagedSgst + stagedCustomTotal;
 
   return (
@@ -406,7 +458,18 @@ export function BillingForm({
                     >
                       <div className="flex-1">
                         <div className="text-gray-900 font-semibold">{suggestion.name}</div>
-                        <div className="text-gray-500 text-xs font-mono mt-0.5">{suggestion.code}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-gray-500 text-xs font-mono">{suggestion.code}</span>
+                          {suggestion.availableQty !== undefined ? (
+                            suggestion.availableQty > 0 ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">{suggestion.availableQty} available</span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 border border-red-200">Sold Out</span>
+                            )
+                          ) : (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">Not in Queue</span>
+                          )}
+                        </div>
                       </div>
                       <div className="text-orange-600 font-bold text-lg">₹{suggestion.price}</div>
                     </div>
@@ -587,7 +650,7 @@ export function BillingForm({
               <span>Subtotal</span>
               <span className="font-bold">{stagedTotal.toFixed(2)}</span>
             </div>
-            {SERVICE_CHARGE_ENABLED && (
+            {applyServiceCharge && (
               <div className="flex justify-between text-sm text-gray-500">
                 <span>{`Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)`}</span>
                 <span className="font-medium">{stagedServiceCharge.toFixed(2)}</span>
@@ -635,6 +698,7 @@ export function BillingForm({
                     number_of_persons: numberOfPersons || undefined,
                     customer_name: customerName || undefined,
                     mobile_number: mobileNumber || undefined,
+                    initiated_by: user?.name || user?.username || undefined,
                     items: stagedItems.map(item => ({ name: item.name, quantity: item.quantity, category: item.category })),
                   });
                   if (response.success) {
@@ -643,7 +707,8 @@ export function BillingForm({
                       name: item.name,
                       price: item.price,
                       quantity: item.quantity,
-                      code: item.code
+                      code: item.code,
+                      taxApplicable: item.taxApplicable,
                     }));
                     onAddItems(itemsToAdd);
                     setKotItems([...stagedItems]);

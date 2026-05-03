@@ -25,6 +25,7 @@ export interface Order {
   totalAmount: number;
   paymentMode: 'Cash' | 'UPI' | 'Card';
   orderStatus: 'Paid' | 'Cancelled';
+  initiatedBy?: string;
 }
 
 
@@ -78,6 +79,7 @@ export default function OrderHistory() {
         totalAmount: parseFloat(bill.total_amount),
         paymentMode: mapPaymentMethod(bill.payment_method),
         orderStatus: mapStatus(bill.status),
+        initiatedBy: bill.initiated_by || undefined,
       }));
 
       // Map cancellations

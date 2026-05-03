@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { CommonHeader } from '../../components/CommonHeader';
 import { adminApi, AdminSettings, CustomCharge } from '../utils/adminApi';
-import { Settings, Save, Percent, RefreshCw, Shield, LayoutDashboard, Package, ChefHat, Calculator, Receipt, ShoppingCart, History, UtensilsCrossed, Users, Plus, Trash2, X } from 'lucide-react';
+import { Settings, Save, Percent, RefreshCw, Shield, LayoutDashboard, Package, ChefHat, Calculator, Receipt, ShoppingCart, History, UtensilsCrossed, Users, Plus, Trash2, X, Tag } from 'lucide-react';
+import { inventoryCategoryApi, InventoryCategory } from '../utils/inventoryCategoryApi';
 import { toast } from 'sonner';
 
 const hideSpinnerStyle = `
@@ -50,6 +51,7 @@ export default function Admin() {
   const [settings, setSettings] = useState<AdminSettings>({
     service_charge_enabled: 'true',
     service_charge_percent: '5',
+    service_charge_parcel_exempt: 'true',
     cgst_percent: '2.5',
     sgst_percent: '2.5',
   });
@@ -58,7 +60,11 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingAccess, setSavingAccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<'billing' | 'access'>('billing');
+  const [activeTab, setActiveTab] = useState<'billing' | 'access' | 'categories'>('billing');
+  const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
+  const [newInventoryCategoryName, setNewInventoryCategoryName] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<number | null>(null);
   const [showAddCharge, setShowAddCharge] = useState(false);
   const [newChargeName, setNewChargeName] = useState('');
   const [newChargePercent, setNewChargePercent] = useState('');
@@ -81,7 +87,15 @@ export default function Admin() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchSettings(); }, []);
+  const fetchCategories = async () => {
+    try {
+      const res = await inventoryCategoryApi.getAll();
+      const data = (res.data as any)?.data || res.data;
+      if (Array.isArray(data)) setInventoryCategories(data);
+    } catch {}
+  };
+
+  useEffect(() => { fetchSettings(); fetchCategories(); }, []);
 
   const handleSaveBilling = async () => {
     setSaving(true);
@@ -142,6 +156,37 @@ export default function Admin() {
     setCustomCharges(prev => prev.filter(c => c.id !== id));
   };
 
+  const handleAddInventoryCategory = async () => {
+    if (!newInventoryCategoryName.trim()) { toast.error('Enter category name'); return; }
+    setAddingCategory(true);
+    try {
+      const res = await inventoryCategoryApi.create(newInventoryCategoryName.trim());
+      if (res.success) {
+        const newCat = (res.data as any)?.data || res.data;
+        if (newCat) setInventoryCategories(prev => [...prev, newCat].sort((a, b) => a.name.localeCompare(b.name)));
+        setNewInventoryCategoryName('');
+        toast.success(`Category "${newInventoryCategoryName.trim()}" added`);
+      } else {
+        toast.error(res.error || 'Failed to add category');
+      }
+    } catch (err: any) { toast.error(err?.message || 'Error adding category'); }
+    setAddingCategory(false);
+  };
+
+  const handleDeleteInventoryCategory = async (id: number, name: string) => {
+    setDeletingCategoryId(id);
+    try {
+      const res = await inventoryCategoryApi.delete(id);
+      if ((res as any).success !== false) {
+        setInventoryCategories(prev => prev.filter(c => c.id !== id));
+        toast.success(`Category "${name}" removed`);
+      } else {
+        toast.error('Failed to delete category');
+      }
+    } catch { toast.error('Error deleting category'); }
+    setDeletingCategoryId(null);
+  };
+
   const serviceChargeEnabled = settings.service_charge_enabled === 'true';
 
   // Preview calculation
@@ -185,6 +230,10 @@ export default function Admin() {
             className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'access' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-white text-gray-600 border-2 border-gray-200'}`}>
             <Shield className="w-4 h-4 inline mr-2" />Menu Access
           </button>
+          <button onClick={() => setActiveTab('categories')}
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === 'categories' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-white text-gray-600 border-2 border-gray-200'}`}>
+            <Tag className="w-4 h-4 inline mr-2" />Inventory Categories
+          </button>
         </div>
 
         {activeTab === 'billing' && (
@@ -221,6 +270,18 @@ export default function Admin() {
                   </div>
                 )}
                 {!serviceChargeEnabled && <p className="text-sm text-orange-600 font-medium">Service charge is disabled</p>}
+                {serviceChargeEnabled && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-orange-200">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Exempt for Parcel Orders</p>
+                      <p className="text-xs text-gray-500">No service charge for takeaway/parcel orders</p>
+                    </div>
+                    <button onClick={() => setSettings(prev => ({ ...prev, service_charge_parcel_exempt: prev.service_charge_parcel_exempt === 'true' ? 'false' : 'true' }))}
+                      className={`relative w-14 h-7 rounded-full transition-colors ${settings.service_charge_parcel_exempt === 'true' ? 'bg-green-500' : 'bg-gray-300'}`}>
+                      <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${settings.service_charge_parcel_exempt === 'true' ? 'left-[30px]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* CGST */}
@@ -406,6 +467,60 @@ export default function Admin() {
                 {savingAccess ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
                 {savingAccess ? 'Saving...' : 'Save Menu Access'}
               </button>
+            </div>
+          </div>
+        )}
+        {activeTab === 'categories' && (
+          <div className="bg-white rounded-2xl shadow-sm border-2 border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-6 py-4">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2"><Tag className="w-5 h-5" /> Inventory Categories</h2>
+              <p className="text-purple-100 text-xs mt-1">Manage categories for inventory items</p>
+            </div>
+            <div className="p-6">
+              {/* Add new category */}
+              <div className="flex gap-3 mb-6">
+                <input
+                  type="text"
+                  value={newInventoryCategoryName}
+                  onChange={(e) => setNewInventoryCategoryName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddInventoryCategory()}
+                  placeholder="New category name"
+                  className="flex-1 px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm"
+                />
+                <button
+                  onClick={handleAddInventoryCategory}
+                  disabled={addingCategory}
+                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg font-bold text-sm flex items-center gap-2 transition-all"
+                >
+                  {addingCategory ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Add
+                </button>
+              </div>
+
+              {/* Category list */}
+              {inventoryCategories.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">No categories yet. Add one above.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {inventoryCategories.map((cat) => (
+                    <div key={cat.id} className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border-2 border-gray-200 hover:border-purple-300 transition-all">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-purple-500" />
+                        <span className="font-semibold text-gray-800 text-sm">{cat.name}</span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteInventoryCategory(cat.id, cat.name)}
+                        disabled={deletingCategoryId === cat.id}
+                        className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
+                      >
+                        {deletingCategoryId === cat.id
+                          ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                          : <Trash2 className="w-4 h-4 text-red-500" />}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

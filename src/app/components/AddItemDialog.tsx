@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { InventoryItem } from '../types';
 import { inventoryApi } from '../modules/utils/inventoryApi';
+import { inventoryCategoryApi, InventoryCategory } from '../modules/utils/inventoryCategoryApi';
+import { toast } from 'sonner';
 
 interface AddItemDialogProps {
   isOpen: boolean;
@@ -9,18 +11,6 @@ interface AddItemDialogProps {
   onSave: (item: Omit<InventoryItem, 'id'> & { id?: string }) => void;
   editItem?: InventoryItem | null;
 }
-
-const CATEGORIES = [
-  'Vegetables',
-  'Fruits',
-  'Dairy',
-  'Meat',
-  'Grains',
-  'Beverages',
-  'Snacks',
-  'Condiments',
-  'Other',
-];
 
 const UNITS = ['kg', 'g', 'L', 'ml', 'pieces', 'packs', 'bottles', 'cans'];
 
@@ -30,6 +20,9 @@ export function AddItemDialog({
   onSave,
   editItem,
 }: AddItemDialogProps) {
+  const [categories, setCategories] = useState<InventoryCategory[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [showAddCategory, setShowAddCategory] = useState(false);
   const [formData, setFormData] = useState({
     product_code: '',
     name: '',
@@ -40,8 +33,36 @@ export function AddItemDialog({
     minimum_stock: '',
   });
 
+  // Fetch categories from DB
   useEffect(() => {
-    console.log(editItem,'editItemKK')
+    if (isOpen) {
+      inventoryCategoryApi.getAll().then(res => {
+        const data = (res.data as any)?.data || res.data;
+        if (Array.isArray(data)) setCategories(data);
+      }).catch(() => {});
+    }
+  }, [isOpen]);
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      const res = await inventoryCategoryApi.create(newCategoryName.trim());
+      if (res.success) {
+        const newCat = (res.data as any)?.data || res.data;
+        if (newCat) setCategories(prev => [...prev, newCat].sort((a, b) => a.name.localeCompare(b.name)));
+        setFormData(prev => ({ ...prev, category: newCategoryName.trim() }));
+        setNewCategoryName('');
+        setShowAddCategory(false);
+        toast.success(`Category "${newCategoryName.trim()}" added`);
+      } else {
+        toast.error((res as any).error || 'Failed to add category');
+      }
+    } catch {
+      toast.error('Error adding category');
+    }
+  };
+
+  useEffect(() => {
     if (editItem) {
       setFormData({
         product_code: editItem?.product_code,
@@ -150,20 +171,57 @@ export function AddItemDialog({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Category *
               </label>
-              <select
-                required
-                value={formData.category}
-                onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  required
+                  value={formData.category}
+                  onChange={(e) =>
+                    setFormData({ ...formData, category: e.target.value })
+                  }
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCategory(!showAddCategory)}
+                  className="px-2.5 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-md transition-colors"
+                  title="Add new category"
+                >
+                  <Plus className="w-4 h-4 text-blue-600" />
+                </button>
+              </div>
+              {showAddCategory && (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddCategory())}
+                    placeholder="New category name"
+                    className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCategory}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddCategory(false); setNewCategoryName(''); }}
+                    className="px-3 py-1.5 border border-gray-300 text-gray-600 text-sm rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -6,8 +6,11 @@ import { PaymentModal } from './PaymentModal';
 import { CommonHeader } from '@/app/components/CommonHeader';
 import { billingApi } from '../utils/billingApi';
 import { draftApi } from '../utils/draftApi';
+import { kitchenApi } from '../utils/kitchenApi';
 import { adminApi } from '../utils/adminApi';
 import { toast } from 'sonner';
+import { X } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export interface MenuItem {
   id: string;
@@ -18,6 +21,7 @@ export interface MenuItem {
 
 export interface OrderItem extends MenuItem {
   quantity: number;
+  taxApplicable?: boolean;
 }
 
 export interface PaymentDetails {
@@ -38,10 +42,11 @@ export interface DraftOrder {
 }
 
 export function BillingDashboard() {
+  const { user } = useAuth();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const ordersRef = useRef<OrderItem[]>([]);
 
-  // Keep ref in sync with orders state
+  // Keep orders ref in sync with state
   useEffect(() => {
     ordersRef.current = orders;
   }, [orders]);
@@ -55,8 +60,9 @@ export function BillingDashboard() {
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetails | null>(null);
   const [currentBillNumber, setCurrentBillNumber] = useState('');
   const [draftOrders, setDraftOrders] = useState<DraftOrder[]>([]);
+  const [clubPrompt, setClubPrompt] = useState<DraftOrder | null>(null);
 
-  // Fetch drafts from database on mount
+  // Fetch drafts from database on mount — show all in list
   useEffect(() => {
     const fetchDrafts = async () => {
       try {
@@ -69,7 +75,11 @@ export function BillingDashboard() {
   }, []);
   const [sentToKitchen, setSentToKitchen] = useState(false);
   const [currentSavedOrderId, setCurrentSavedOrderId] = useState<string | null>(null);
-  const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, cgstPercent: 2.5, sgstPercent: 2.5, customCharges: [] as { id: string; name: string; percent: number; enabled: boolean }[] });
+  const savedOrderIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    savedOrderIdRef.current = currentSavedOrderId;
+  }, [currentSavedOrderId]);
+  const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, serviceChargeParcelExempt: true, cgstPercent: 2.5, sgstPercent: 2.5, customCharges: [] as { id: string; name: string; percent: number; enabled: boolean }[] });
 
   // Fetch billing settings on mount
   useEffect(() => {
@@ -85,6 +95,7 @@ export function BillingDashboard() {
           setBillingSettings({
             serviceChargeEnabled: data.service_charge_enabled === 'true',
             serviceChargePercent: parseFloat(data.service_charge_percent) || 5,
+            serviceChargeParcelExempt: data.service_charge_parcel_exempt !== 'false',
             cgstPercent: parseFloat(data.cgst_percent) || 2.5,
             sgstPercent: parseFloat(data.sgst_percent) || 2.5,
             customCharges,
@@ -95,7 +106,49 @@ export function BillingDashboard() {
     fetchSettings();
   }, []);
 
-  const addItemsToBill = (items: { name: string; price: number; quantity: number; code?: string }[]) => {
+  // Detect saved orders from same customer with different order type
+  useEffect(() => {
+    if (mobileNumber.length === 10 && draftOrders.length > 0) {
+      const match = draftOrders.find(
+        d => d.mobileNumber === mobileNumber && d.orderType !== orderType && d.id !== currentSavedOrderId
+      );
+      if (match) {
+        setClubPrompt(match);
+      } else {
+        setClubPrompt(null);
+      }
+    } else {
+      setClubPrompt(null);
+    }
+  }, [mobileNumber, orderType, draftOrders, currentSavedOrderId]);
+
+  const handleClubOrders = async () => {
+    if (!clubPrompt) return;
+    // Merge items from the saved order into current order
+    const itemsToMerge = clubPrompt.orders;
+    setOrders(prev => {
+      const updated = [...prev];
+      for (const item of itemsToMerge) {
+        const existing = updated.find(o => o.name === item.name);
+        if (existing) {
+          existing.quantity += item.quantity;
+        } else {
+          updated.push({ ...item, id: Date.now().toString() + Math.random() });
+        }
+      }
+      return updated;
+    });
+    // Delete the clubbed saved order from DB and list
+    try {
+      await draftApi.delete(parseInt(clubPrompt.id));
+    } catch { /* ignore */ }
+    setDraftOrders(prev => prev.filter(d => d.id !== clubPrompt.id));
+    setSentToKitchen(true);
+    toast.success(`Clubbed ${clubPrompt.orderType} order (${itemsToMerge.length} items) with current ${orderType} order`);
+    setClubPrompt(null);
+  };
+
+  const addItemsToBill = (items: { name: string; price: number; quantity: number; code?: string; taxApplicable?: boolean }[]) => {
     setOrders(prev => {
       const updated = [...prev];
       for (const item of items) {
@@ -108,7 +161,8 @@ export function BillingDashboard() {
             name: item.name,
             price: item.price,
             quantity: item.quantity,
-            category: 'General'
+            category: 'General',
+            taxApplicable: item.taxApplicable !== false,
           });
         }
       }
@@ -167,10 +221,11 @@ export function BillingDashboard() {
       orderType,
       tableNumber: tableNumber || undefined,
       numberOfPersons: numberOfPersons || undefined,
-      orders: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity })),
+      orders: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, taxApplicable: o.taxApplicable !== false })),
       paymentMethod: payment.method,
       transactionId: payment.transactionId,
       amountPaid: payment.amountPaid,
+      initiatedBy: user?.name || user?.username || 'Unknown',
     });
 
     if (response.success && response.data) {
@@ -192,7 +247,7 @@ export function BillingDashboard() {
   };
 
   const saveDraft = async (itemsFromKitchen?: { name: string; price: number; quantity: number; category: string }[]) => {
-    const itemsToSave = itemsFromKitchen || orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category }));
+    const itemsToSave = itemsFromKitchen || orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false }));
     if (itemsToSave.length === 0) {
       toast.error('Cannot save empty order');
       return;
@@ -277,10 +332,52 @@ export function BillingDashboard() {
     if (!draft) return;
 
     if (orders.length > 0) {
-      const confirm = window.confirm('Current order will be replaced. Do you want to continue?');
+      const confirm = window.confirm('Current order will be saved and replaced. Continue?');
       if (!confirm) return;
+
+      // Save current active order back to saved orders list if it has items
+      if (currentSavedOrderId) {
+        // Update existing draft in DB with current items
+        try {
+          await draftApi.update(Number(currentSavedOrderId), {
+            mobile_number: mobileNumber,
+            customer_name: customerName,
+            order_type: orderType,
+            table_number: tableNumber,
+            number_of_persons: numberOfPersons,
+            items: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false })),
+          });
+          // Add back to list if not already there
+          setDraftOrders(prev => {
+            const exists = prev.find(d => d.id === currentSavedOrderId);
+            if (exists) {
+              return prev.map(d => d.id === currentSavedOrderId ? {
+                ...d, orders: [...orders], mobileNumber, customerName, orderType, tableNumber, numberOfPersons, timestamp: new Date()
+              } : d);
+            }
+            return [...prev, { id: currentSavedOrderId!, orders: [...orders], mobileNumber, customerName, orderType, tableNumber, numberOfPersons, timestamp: new Date() }];
+          });
+        } catch { /* ignore */ }
+      } else {
+        // Create new draft for current items
+        try {
+          const res = await draftApi.create({
+            mobile_number: mobileNumber,
+            customer_name: customerName,
+            order_type: orderType,
+            table_number: tableNumber,
+            number_of_persons: numberOfPersons,
+            items: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false })),
+          });
+          if (res.success) {
+            const newId = String((res.data as any)?.data?.id || (res.data as any)?.id || Date.now());
+            setDraftOrders(prev => [...prev, { id: newId, orders: [...orders], mobileNumber, customerName, orderType, tableNumber, numberOfPersons, timestamp: new Date() }]);
+          }
+        } catch { /* ignore */ }
+      }
     }
 
+    // Load selected draft into current order
     setOrders([...draft.orders]);
     setMobileNumber(draft.mobileNumber);
     setCustomerName(draft.customerName || '');
@@ -288,12 +385,9 @@ export function BillingDashboard() {
     setTableNumber(draft.tableNumber);
     setNumberOfPersons(draft.numberOfPersons);
     setSentToKitchen(true);
-    setCurrentSavedOrderId(null);
+    setCurrentSavedOrderId(draftId);
 
-    // Delete from database and remove from list
-    try {
-      await draftApi.delete(parseInt(draftId));
-    } catch { /* ignore */ }
+    // Remove loaded draft from list (it's now the active order)
     setDraftOrders(prev => prev.filter(d => d.id !== draftId));
   };
 
@@ -301,9 +395,20 @@ export function BillingDashboard() {
     const confirm = window.confirm('Are you sure you want to delete this saved order?');
     if (confirm) {
       try {
+        // Find the draft to get mobile number
+        const draft = draftOrders.find(d => d.id === draftId);
+        
         await draftApi.delete(parseInt(draftId));
+        
+        // Also delete pending kitchen order for this mobile number
+        if (draft?.mobileNumber) {
+          try {
+            await kitchenApi.deletePendingByMobile(draft.mobileNumber);
+          } catch { /* ignore */ }
+        }
+        
         setDraftOrders(prev => prev.filter(d => d.id !== draftId));
-        toast.success('Saved order deleted');
+        toast.success('Saved order and pending kitchen order deleted');
       } catch {
         toast.error('Failed to delete saved order');
       }
@@ -322,6 +427,7 @@ export function BillingDashboard() {
         paymentDetails={paymentDetails}
         billNumber={currentBillNumber}
         onNewOrder={clearOrder}
+        billingSettings={billingSettings}
       />
     );
   }
@@ -372,25 +478,36 @@ export function BillingDashboard() {
                 sentToKitchen={sentToKitchen}
                 onItemCancelled={() => {
                   setSentToKitchen(true);
-                  // Auto-update saved order after cancellation
-                  const savedId = Number(currentSavedOrderId);
-                  if (currentSavedOrderId && !isNaN(savedId)) {
-                    setTimeout(async () => {
-                      const latestOrders = ordersRef.current;
-                      if (latestOrders.length > 0) {
-                        try {
-                          await draftApi.update(savedId, {
-                            mobile_number: mobileNumber,
-                            customer_name: customerName,
-                            order_type: orderType,
-                            table_number: tableNumber,
-                            number_of_persons: numberOfPersons,
-                            items: latestOrders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category })),
-                          });
-                        } catch { /* silent */ }
+                  setTimeout(async () => {
+                    const latestOrders = ordersRef.current;
+                    const savedId = savedOrderIdRef.current;
+                    if (latestOrders.length === 0) return;
+                    try {
+                      if (savedId && !isNaN(Number(savedId))) {
+                        await draftApi.update(Number(savedId), {
+                          mobile_number: mobileNumber,
+                          customer_name: customerName,
+                          order_type: orderType,
+                          table_number: tableNumber,
+                          number_of_persons: numberOfPersons,
+                          items: latestOrders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false })),
+                        });
+                      } else {
+                        const res = await draftApi.create({
+                          mobile_number: mobileNumber,
+                          customer_name: customerName,
+                          order_type: orderType,
+                          table_number: tableNumber,
+                          number_of_persons: numberOfPersons,
+                          items: latestOrders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false })),
+                        });
+                        if (res.success) {
+                          const newId = String((res.data as any)?.data?.id || (res.data as any)?.id || '');
+                          if (newId) setCurrentSavedOrderId(newId);
+                        }
                       }
-                    }, 100);
-                  }
+                    } catch { /* silent */ }
+                  }, 200);
                 }}
                 billingSettings={billingSettings}
               />
@@ -403,8 +520,55 @@ export function BillingDashboard() {
               orders={orders}
               onComplete={handlePaymentComplete}
               onCancel={() => setShowPayment(false)}
+              orderType={orderType}
               billingSettings={billingSettings}
             />
+          )}
+
+          {/* Club Orders Prompt */}
+          {clubPrompt && (
+            <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full animate-in slide-in-from-bottom">
+              <div className="bg-white rounded-xl shadow-2xl border-2 border-orange-300 overflow-hidden">
+                <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-white">
+                    <span className="text-lg">🔗</span>
+                    <span className="font-bold text-sm">Club Orders?</span>
+                  </div>
+                  <button onClick={() => setClubPrompt(null)} className="p-1 hover:bg-white/20 rounded-lg transition-all">
+                    <X className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  <p className="text-sm text-gray-700 mb-2">
+                    Customer <span className="font-bold">{clubPrompt.mobileNumber}</span> has a 
+                    <span className="font-bold text-orange-600"> {clubPrompt.orderType === 'dine-in' ? 'Dine-In' : 'Parcel'}</span> order 
+                    with <span className="font-bold">{clubPrompt.orders.length} item(s)</span>.
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-2 mb-3 max-h-24 overflow-y-auto">
+                    {clubPrompt.orders.map((item, idx) => (
+                      <div key={idx} className="flex justify-between text-xs text-gray-600 py-0.5">
+                        <span>{item.name} ×{item.quantity}</span>
+                        <span className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setClubPrompt(null)}
+                      className="flex-1 px-3 py-2 border-2 border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 font-medium text-xs"
+                    >
+                      Keep Separate
+                    </button>
+                    <button
+                      onClick={handleClubOrders}
+                      className="flex-1 px-3 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg hover:from-orange-600 hover:to-amber-600 font-bold text-xs shadow-md"
+                    >
+                      🔗 Club Orders
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
         </div>

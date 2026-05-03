@@ -425,6 +425,7 @@ export default function ChefRecipe() {
         servings: recipe.servings,
         difficulty: recipe.difficulty,
         price: recipe.price || 0,
+        tax_applicable: recipe.taxApplicable !== false,
         ingredients: recipe.ingredients.map((ing: any) => ({
           name: ing.name,
           quantity: ing.quantity,

@@ -212,6 +212,22 @@ export const createOrderHistoryColumnDefs = (
       filter: false,
     },
     {
+      headerName: 'Initiated By',
+      field: 'initiatedBy',
+      width: 130,
+      cellRenderer: (params: any) => {
+        if (!params.value) return <span className="text-gray-400 text-xs">-</span>;
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            {params.value}
+          </span>
+        );
+      },
+      cellStyle: { textAlign: 'center' },
+      sortable: true,
+      filter: false,
+    },
+    {
       headerName: 'Actions',
       width: 150,
       cellRenderer: ActionsCellRenderer,

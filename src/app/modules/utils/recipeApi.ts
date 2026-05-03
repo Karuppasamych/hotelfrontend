@@ -17,6 +17,7 @@ export interface Recipe {
   servings: string;
   difficulty: string;
   price?: number;
+  tax_applicable?: boolean;
   ingredients: RecipeIngredient[];
   instructions: string[];
 }

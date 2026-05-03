@@ -18,8 +18,8 @@ export function CommonHeader({ successMessage, showStats = false, statsComponent
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const [showTotalRevenue, setShowTotalRevenue] = useState(isAdmin);
-  const [showMonthlyRevenue, setShowMonthlyRevenue] = useState(isAdmin);
+  const [showTotalRevenue, setShowTotalRevenue] = useState(false);
+  const [showMonthlyRevenue, setShowMonthlyRevenue] = useState(false);
 
   const handleLogout = () => {
     logout();

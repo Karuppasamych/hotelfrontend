@@ -6,13 +6,17 @@ interface PaymentModalProps {
   orders: OrderItem[];
   onComplete: (payment: PaymentDetails) => void;
   onCancel: () => void;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
+  orderType?: string;
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
 }
 
 
-export function PaymentModal({ orders, onComplete, onCancel, billingSettings }: PaymentModalProps) {
+export function PaymentModal({ orders, onComplete, onCancel, orderType, billingSettings }: PaymentModalProps) {
   const SERVICE_CHARGE_ENABLED = billingSettings?.serviceChargeEnabled ?? true;
+  const SERVICE_CHARGE_PARCEL_EXEMPT = billingSettings?.serviceChargeParcelExempt ?? true;
   const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
+  const isParcel = orderType === 'parcel';
+  const applyServiceCharge = SERVICE_CHARGE_ENABLED && !(isParcel && SERVICE_CHARGE_PARCEL_EXEMPT);
   const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
   const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
   const enabledCustomCharges = (billingSettings?.customCharges || []).filter(c => c.enabled);
@@ -33,10 +37,11 @@ export function PaymentModal({ orders, onComplete, onCancel, billingSettings }: 
   const [cashReceived, setCashReceived] = useState('');
 
   const subtotal = orders.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const serviceCharge = SERVICE_CHARGE_ENABLED ? subtotal * SERVICE_CHARGE_RATE : 0;
-  const cgst = subtotal * CGST_RATE;
-  const sgst = subtotal * SGST_RATE;
-  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + subtotal * c.percent / 100, 0);
+  const taxableSubtotal = orders.filter(i => (i as any).taxApplicable !== false).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const serviceCharge = applyServiceCharge ? taxableSubtotal * SERVICE_CHARGE_RATE : 0;
+  const cgst = taxableSubtotal * CGST_RATE;
+  const sgst = taxableSubtotal * SGST_RATE;
+  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + taxableSubtotal * c.percent / 100, 0);
   const total = subtotal + serviceCharge + cgst + sgst + customChargesTotal;
 
   const handlePayment = async () => {
@@ -126,6 +131,9 @@ export function PaymentModal({ orders, onComplete, onCancel, billingSettings }: 
                 <div className="flex-1">
                   <span className="text-gray-900 font-medium text-sm">{item.name}</span>
                   <span className="text-orange-600 text-xs ml-2 font-bold bg-orange-100 px-1.5 py-0.5 rounded-full">× {item.quantity}</span>
+                  {(item as any).taxApplicable === false && (
+                    <span className="text-gray-500 text-[10px] ml-2 bg-gray-100 px-1.5 py-0.5 rounded font-semibold border border-gray-200">No Tax</span>
+                  )}
                 </div>
                 <span className="text-gray-900 font-bold text-sm">₹{(item.price * item.quantity).toFixed(2)}</span>
               </div>
@@ -136,25 +144,39 @@ export function PaymentModal({ orders, onComplete, onCancel, billingSettings }: 
           <div className="space-y-2 bg-white rounded-lg p-3 shadow-sm border border-orange-100">
             <div className="flex justify-between text-gray-700 text-sm">
               <span className="font-medium">Subtotal</span>
-              <span className="font-bold">₹{subtotal.toFixed(2)}</span>
+              <span className="font-bold">{`\u20B9${subtotal.toFixed(2)}`}</span>
             </div>
-            <div className="flex justify-between text-gray-600 text-xs">
-              <span>{`Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)`}</span>
-              <span className="font-semibold">₹{serviceCharge.toFixed(2)}</span>
-            </div>
+            {taxableSubtotal < subtotal && (
+              <div className="flex justify-between text-gray-500 text-xs">
+                <span>Taxable Amount</span>
+                <span className="font-medium">{`\u20B9${taxableSubtotal.toFixed(2)}`}</span>
+              </div>
+            )}
+            {applyServiceCharge && (
+              <div className="flex justify-between text-gray-600 text-xs">
+                <span>{`Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)`}</span>
+                <span className="font-semibold">{`\u20B9${serviceCharge.toFixed(2)}`}</span>
+              </div>
+            )}
             <div className="flex justify-between text-gray-600 text-xs">
               <span>{`CGST (${(CGST_RATE * 100).toFixed(1)}%)`}</span>
-              <span className="font-semibold">₹{cgst.toFixed(2)}</span>
+              <span className="font-semibold">{`\u20B9${cgst.toFixed(2)}`}</span>
             </div>
             <div className="flex justify-between text-gray-600 text-xs">
               <span>{`SGST (${(SGST_RATE * 100).toFixed(1)}%)`}</span>
-              <span className="font-semibold">₹{sgst.toFixed(2)}</span>
+              <span className="font-semibold">{`\u20B9${sgst.toFixed(2)}`}</span>
             </div>
+            {enabledCustomCharges.map(c => (
+              <div key={c.id} className="flex justify-between text-gray-600 text-xs">
+                <span>{`${c.name} (${c.percent}%)`}</span>
+                <span className="font-semibold">{`\u20B9${(taxableSubtotal * c.percent / 100).toFixed(2)}`}</span>
+              </div>
+            ))}
             <div className="flex justify-between items-center pt-2 border-t-2 border-orange-300">
               <span className="text-gray-900 font-bold text-base">Total Amount</span>
-              <span className="text-orange-600 font-bold text-xl">₹{total.toFixed(2)}</span>
+              <span className="text-orange-600 font-bold text-xl">{`\u20B9${total.toFixed(2)}`}</span>
             </div>
-          </div>
+        </div>
         </div>
 
         {/* Payment Methods */}

@@ -7,10 +7,14 @@ interface InventoryStatsProps {
 
 export function InventoryStats({ inventory }: InventoryStatsProps) {
   const lowStockCount = inventory.filter(
-    (item) => item.quantity_available <= item.minimum_stock && item.quantity_available > 0
+    (item) => {
+      const qty = parseFloat(String(item.quantity_available)) || 0;
+      const min = parseFloat(String(item.minimum_stock)) || 0;
+      return qty <= min && qty > 0;
+    }
   ).length;
 
-  const outOfStockCount = inventory.filter((item) => item.quantity_available === 0).length;
+  const outOfStockCount = inventory.filter((item) => (parseFloat(String(item.quantity_available)) || 0) === 0).length;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

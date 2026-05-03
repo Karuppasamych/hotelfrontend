@@ -30,6 +30,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
   const [servings, setServings] = useState('');
   const [difficulty, setDifficulty] = useState('Medium');
   const [price, setPrice] = useState('');
+  const [taxApplicable, setTaxApplicable] = useState(true);
   const [ingredients, setIngredients] = useState<Ingredient[]>([{ name: '', quantity: '', unit: '' }]);
   const [instructions, setInstructions] = useState<string[]>(['']);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -149,6 +150,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
       servings,
       difficulty,
       price: parseFloat(price) || 0,
+      taxApplicable,
       ingredients: validIngredients,
       instructions: validInstructions,
     };
@@ -169,6 +171,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
     setServings('');
     setDifficulty('Medium');
     setPrice('');
+    setTaxApplicable(true);
     setIngredients([{ name: '', quantity: '', unit: '' }]);
     setInstructions(['']);
     setVideoFile(null);
@@ -331,6 +334,27 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-400 transition-all"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Tax & Charges Applicable *
+                  </label>
+                  <div className="flex gap-4">
+                    <label className={`flex-1 flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all ${taxApplicable ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-gray-400'}`}>
+                      <input type="radio" name="taxApplicable" checked={taxApplicable} onChange={() => setTaxApplicable(true)} className="w-4 h-4 text-green-600 accent-green-600" />
+                      <div>
+                        <span className="text-sm font-bold text-gray-800">Yes</span>
+                        <p className="text-xs text-gray-500">GST, Service charge & other charges apply</p>
+                      </div>
+                    </label>
+                    <label className={`flex-1 flex items-center gap-3 p-3 border-2 rounded-xl cursor-pointer transition-all ${!taxApplicable ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'}`}>
+                      <input type="radio" name="taxApplicable" checked={!taxApplicable} onChange={() => setTaxApplicable(false)} className="w-4 h-4 text-red-600 accent-red-600" />
+                      <div>
+                        <span className="text-sm font-bold text-gray-800">No</span>
+                        <p className="text-xs text-gray-500">No taxes or charges on this item</p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
             </section>

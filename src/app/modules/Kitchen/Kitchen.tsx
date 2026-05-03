@@ -242,8 +242,13 @@ export default function Kitchen() {
                   </div>
 
                   {/* Customer Info */}
-                  {(order.customer_name || order.mobile_number || order.number_of_persons) && (
+                  {(order.customer_name || order.mobile_number || order.number_of_persons || (order as any).initiated_by) && (
                     <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-2 text-xs">
+                      {(order as any).initiated_by && (
+                        <span className="flex items-center gap-1 text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                          Order by: {(order as any).initiated_by}
+                        </span>
+                      )}
                       {order.customer_name && (
                         <span className="flex items-center gap-1 text-gray-600">
                           <Users className="w-3 h-3" /> {order.customer_name}

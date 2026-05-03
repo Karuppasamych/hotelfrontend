@@ -17,7 +17,7 @@ interface OrderSummaryProps {
   orderType?: string;
   sentToKitchen?: boolean;
   onItemCancelled?: () => void;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
 }
 
 
@@ -41,16 +41,21 @@ export function OrderSummary({
   const [cancelling, setCancelling] = useState(false);
 
   const SERVICE_CHARGE_ENABLED = billingSettings?.serviceChargeEnabled ?? true;
+  const SERVICE_CHARGE_PARCEL_EXEMPT = billingSettings?.serviceChargeParcelExempt ?? true;
   const SERVICE_CHARGE_RATE = (billingSettings?.serviceChargePercent ?? 5) / 100;
   const CGST_RATE = (billingSettings?.cgstPercent ?? 2.5) / 100;
   const SGST_RATE = (billingSettings?.sgstPercent ?? 2.5) / 100;
   const enabledCustomCharges = (billingSettings?.customCharges || []).filter(c => c.enabled);
 
+  const isParcel = orderType === 'parcel';
+  const applyServiceCharge = SERVICE_CHARGE_ENABLED && !(isParcel && SERVICE_CHARGE_PARCEL_EXEMPT);
+
   const subtotal = orders.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const serviceCharge = SERVICE_CHARGE_ENABLED ? subtotal * SERVICE_CHARGE_RATE : 0;
-  const cgst = subtotal * CGST_RATE;
-  const sgst = subtotal * SGST_RATE;
-  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + subtotal * c.percent / 100, 0);
+  const taxableSubtotal = orders.filter(i => i.taxApplicable !== false).reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const serviceCharge = applyServiceCharge ? taxableSubtotal * SERVICE_CHARGE_RATE : 0;
+  const cgst = taxableSubtotal * CGST_RATE;
+  const sgst = taxableSubtotal * SGST_RATE;
+  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + taxableSubtotal * c.percent / 100, 0);
   const total = subtotal + serviceCharge + cgst + sgst + customChargesTotal;
 
   const handleCancelItem = async () => {
@@ -138,6 +143,9 @@ export function OrderSummary({
                 <div className="flex-1 min-w-0">
                   <p className="text-gray-900 truncate font-medium">{item.name}</p>
                   <p className="text-orange-600 font-bold">₹{item.price.toFixed(2)}</p>
+                  {item.taxApplicable === false && (
+                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-semibold border border-gray-200">No Tax</span>
+                  )}
                 </div>
                 
                 <div className="flex items-center gap-2">
@@ -157,31 +165,37 @@ export function OrderSummary({
           <div className="border-t-2 border-orange-200 pt-4 space-y-3 bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-lg">
             <div className="flex justify-between text-gray-700 text-lg">
               <span>Subtotal</span>
-              <span className="font-bold">₹{subtotal.toFixed(2)}</span>
+              <span className="font-bold">{`\u20B9${subtotal.toFixed(2)}`}</span>
             </div>
-            {SERVICE_CHARGE_ENABLED && (
+            {taxableSubtotal < subtotal && (
+              <div className="flex justify-between text-gray-500 text-sm">
+                <span>Taxable Amount</span>
+                <span className="font-medium">{`\u20B9${taxableSubtotal.toFixed(2)}`}</span>
+              </div>
+            )}
+            {applyServiceCharge && (
               <div className="flex justify-between text-gray-600">
-                <span>Service Charge ({(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)</span>
-                <span className="font-medium">₹{serviceCharge.toFixed(2)}</span>
+                <span>{`Service Charge (${(SERVICE_CHARGE_RATE * 100).toFixed(1)}%)`}</span>
+                <span className="font-medium">{`\u20B9${serviceCharge.toFixed(2)}`}</span>
               </div>
             )}
             <div className="flex justify-between text-gray-600">
-              <span>CGST ({(CGST_RATE * 100).toFixed(1)}%)</span>
-              <span className="font-medium">₹{cgst.toFixed(2)}</span>
+              <span>{`CGST (${(CGST_RATE * 100).toFixed(1)}%)`}</span>
+              <span className="font-medium">{`\u20B9${cgst.toFixed(2)}`}</span>
             </div>
             <div className="flex justify-between text-gray-600">
-              <span>SGST ({(SGST_RATE * 100).toFixed(1)}%)</span>
-              <span className="font-medium">₹{sgst.toFixed(2)}</span>
+              <span>{`SGST (${(SGST_RATE * 100).toFixed(1)}%)`}</span>
+              <span className="font-medium">{`\u20B9${sgst.toFixed(2)}`}</span>
             </div>
             {enabledCustomCharges.map(c => (
               <div key={c.id} className="flex justify-between text-gray-600">
-                <span>{c.name} ({c.percent}%)</span>
-                <span className="font-medium">{(subtotal * c.percent / 100).toFixed(2)}</span>
+                <span>{`${c.name} (${c.percent}%)`}</span>
+                <span className="font-medium">{`\u20B9${(taxableSubtotal * c.percent / 100).toFixed(2)}`}</span>
               </div>
             ))}
             <div className="flex justify-between text-gray-900 pt-3 border-t-2 border-orange-500 text-xl">
               <span className="font-bold">Total Amount</span>
-              <span className="font-bold text-orange-600">{total.toFixed(2)}</span>
+              <span className="font-bold text-orange-600">{`\u20B9${total.toFixed(2)}`}</span>
             </div>
           </div>
 

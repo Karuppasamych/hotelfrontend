@@ -27,6 +27,7 @@ export interface CreateKitchenOrderData {
   number_of_persons?: string;
   customer_name?: string;
   mobile_number?: string;
+  initiated_by?: string;
   items: { name: string; quantity: number; category?: string }[];
 }
 
@@ -53,5 +54,9 @@ export const kitchenApi = {
 
   reduceItemQuantity: (itemName: string, quantity: number): Promise<ApiResponse<{ message: string }>> => {
     return apiClient.put('/kitchen/reduce-item', { item_name: itemName, quantity });
+  },
+
+  deletePendingByMobile: (mobileNumber: string): Promise<ApiResponse<{ message: string }>> => {
+    return apiClient.post('/kitchen/delete-pending', { mobile_number: mobileNumber });
   },
 };
