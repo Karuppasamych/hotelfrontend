@@ -62,13 +62,36 @@ export function BillingDashboard() {
   const [draftOrders, setDraftOrders] = useState<DraftOrder[]>([]);
   const [clubPrompt, setClubPrompt] = useState<DraftOrder | null>(null);
 
-  // Fetch drafts from database on mount — show all in list
+  // Fetch drafts from database on mount — show all in list, auto-load active order
   useEffect(() => {
     const fetchDrafts = async () => {
       try {
         const response = await draftApi.getAll();
         const data = (response.data as any)?.data || response.data;
-        if (Array.isArray(data)) setDraftOrders(data);
+        if (Array.isArray(data)) {
+          const activeId = sessionStorage.getItem('activeOrderId');
+          if (activeId) {
+            const activeDraft = data.find((d: any) => d.id === activeId);
+            if (activeDraft) {
+              // Auto-load active order into Current Order
+              setOrders([...activeDraft.orders]);
+              setMobileNumber(activeDraft.mobileNumber || '');
+              setCustomerName(activeDraft.customerName || '');
+              setOrderType(activeDraft.orderType || 'dine-in');
+              setTableNumber(activeDraft.tableNumber || '');
+              setNumberOfPersons(activeDraft.numberOfPersons || '');
+              setCurrentSavedOrderId(activeId);
+              setSentToKitchen(true);
+              // Show remaining drafts (exclude active)
+              setDraftOrders(data.filter((d: any) => d.id !== activeId));
+              return;
+            } else {
+              // Active order was deleted, clear session
+              sessionStorage.removeItem('activeOrderId');
+            }
+          }
+          setDraftOrders(data);
+        }
       } catch { /* ignore */ }
     };
     fetchDrafts();
@@ -78,6 +101,12 @@ export function BillingDashboard() {
   const savedOrderIdRef = useRef<string | null>(null);
   useEffect(() => {
     savedOrderIdRef.current = currentSavedOrderId;
+    // Persist active order ID to sessionStorage
+    if (currentSavedOrderId) {
+      sessionStorage.setItem('activeOrderId', currentSavedOrderId);
+    } else {
+      sessionStorage.removeItem('activeOrderId');
+    }
   }, [currentSavedOrderId]);
   const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, serviceChargeParcelExempt: true, cgstPercent: 2.5, sgstPercent: 2.5, customCharges: [] as { id: string; name: string; percent: number; enabled: boolean }[] });
 
@@ -246,8 +275,11 @@ export function BillingDashboard() {
     }
   };
 
-  const saveDraft = async (itemsFromKitchen?: { name: string; price: number; quantity: number; category: string }[]) => {
-    const itemsToSave = itemsFromKitchen || orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false }));
+  const saveDraft = async (itemsFromKitchen?: { name: string; price: number; quantity: number; category: string; taxApplicable?: boolean }[]) => {
+    // When updating existing order, always use latest full order from ref
+    const itemsToSave = (itemsFromKitchen && !currentSavedOrderId)
+      ? itemsFromKitchen
+      : ordersRef.current.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false }));
     if (itemsToSave.length === 0) {
       toast.error('Cannot save empty order');
       return;
@@ -275,7 +307,7 @@ export function BillingDashboard() {
           // Update: re-add to draft list with updated data
           const updatedDraft: DraftOrder = {
             id: currentSavedOrderId,
-            orders: itemsToSave.map(i => ({ id: Date.now().toString() + Math.random(), name: i.name, price: i.price, quantity: i.quantity, category: i.category })),
+            orders: itemsToSave.map(i => ({ id: Date.now().toString() + Math.random(), name: i.name, price: i.price, quantity: i.quantity, category: i.category, taxApplicable: (i as any).taxApplicable })),
             mobileNumber,
             customerName,
             orderType,
@@ -296,7 +328,7 @@ export function BillingDashboard() {
           setCurrentSavedOrderId(newId);
           const newDraft: DraftOrder = {
             id: newId,
-            orders: itemsToSave.map(i => ({ id: Date.now().toString() + Math.random(), name: i.name, price: i.price, quantity: i.quantity, category: i.category })),
+            orders: itemsToSave.map(i => ({ id: Date.now().toString() + Math.random(), name: i.name, price: i.price, quantity: i.quantity, category: i.category, taxApplicable: (i as any).taxApplicable })),
             mobileNumber,
             customerName,
             orderType,
@@ -456,7 +488,10 @@ export function BillingDashboard() {
               onDeleteDraft={deleteDraft}
               onSaveDraft={saveDraft}
               onDraftCreated={(draft) => {
-                setDraftOrders(prev => [...prev, draft]);
+                setDraftOrders(prev => {
+                  // Remove the draft from list since it's now the active order
+                  return prev.filter(d => d.id !== draft.id);
+                });
                 setCurrentSavedOrderId(draft.id);
               }}
               billingSettings={billingSettings}
@@ -481,7 +516,18 @@ export function BillingDashboard() {
                   setTimeout(async () => {
                     const latestOrders = ordersRef.current;
                     const savedId = savedOrderIdRef.current;
-                    if (latestOrders.length === 0) return;
+                    if (latestOrders.length === 0) {
+                      // All items cancelled — delete saved order from DB
+                      if (savedId && !isNaN(Number(savedId))) {
+                        try {
+                          await draftApi.delete(Number(savedId));
+                          setDraftOrders(prev => prev.filter(d => d.id !== savedId));
+                          setCurrentSavedOrderId(null);
+                          setSentToKitchen(false);
+                        } catch { /* silent */ }
+                      }
+                      return;
+                    }
                     try {
                       if (savedId && !isNaN(Number(savedId))) {
                         await draftApi.update(Number(savedId), {

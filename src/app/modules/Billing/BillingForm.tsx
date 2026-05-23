@@ -23,8 +23,9 @@ interface BillingFormProps {
   draftOrders: DraftOrder[];
   onLoadDraft: (draftId: string) => void;
   onDeleteDraft: (draftId: string) => void;
-  onSaveDraft?: (items?: { name: string; price: number; quantity: number; category: string }[]) => void;
+  onSaveDraft?: (items?: { name: string; price: number; quantity: number; category: string; taxApplicable?: boolean }[]) => void;
   onDraftCreated?: (draft: DraftOrder) => void;
+  currentSavedOrderId?: string | null;
   billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
 }
 
@@ -64,6 +65,7 @@ export function BillingForm({
   onDeleteDraft,
   onSaveDraft,
   onDraftCreated,
+  currentSavedOrderId,
   billingSettings
 }: BillingFormProps) {
   const { user } = useAuth();
@@ -712,29 +714,9 @@ export function BillingForm({
                     }));
                     onAddItems(itemsToAdd);
                     setKotItems([...stagedItems]);
-                    // Auto-save as draft with items directly
-                    const saveResponse = await draftApi.create({
-                      mobile_number: mobileNumber,
-                      customer_name: customerName,
-                      order_type: orderType,
-                      table_number: tableNumber,
-                      number_of_persons: numberOfPersons,
-                      items: stagedItems.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, category: i.category })),
-                    });
-                    if ((saveResponse as any).success !== false) {
-                      const newDraftId = String((saveResponse.data as any)?.data?.id || (saveResponse.data as any)?.id || Date.now());
-                      const newDraft: any = {
-                        id: newDraftId,
-                        orders: stagedItems.map(i => ({ id: Date.now().toString() + Math.random(), name: i.name, price: i.price, quantity: i.quantity, category: i.category })),
-                        mobileNumber,
-                        customerName,
-                        orderType,
-                        tableNumber,
-                        numberOfPersons,
-                        timestamp: new Date()
-                      };
-                      onDraftCreated?.(newDraft);
-                    }
+                    // Auto-save: let parent handle via saveDraft with items to prevent clearing
+                    const itemsForSave = stagedItems.map(i => ({ name: i.name, price: i.price, quantity: i.quantity, category: i.category, taxApplicable: i.taxApplicable }));
+                    setTimeout(() => onSaveDraft?.(itemsForSave), 150);
                     setStagedItems([]);
                     toast.success(`KOT ${(response.data as any)?.orderNumber || ''} sent to kitchen!`);
                     setShowKOT(true);

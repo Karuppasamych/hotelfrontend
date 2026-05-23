@@ -11,6 +11,7 @@ import { recipes } from './constants';
 import { cuisineApi } from '../utils/cuisineApi';
 import { inventoryApi } from '../utils/inventoryApi';
 import { recipeApi } from '../utils/recipeApi';
+import { toast } from 'sonner';
 
 
 interface Ingredient {
@@ -90,6 +91,7 @@ export default function ChefRecipe() {
             servings: r.servings,
             difficulty: r.difficulty,
             price: parseFloat(r.price as any) || 0,
+            taxApplicable: (r as any).tax_applicable !== 0 && (r as any).tax_applicable !== false,
             ingredients: r.ingredients,
             instructions: r.instructions
           }));
@@ -264,6 +266,7 @@ export default function ChefRecipe() {
               servings: r.servings,
               difficulty: r.difficulty,
               price: parseFloat(r.price as any) || 0,
+              taxApplicable: (r as any).tax_applicable !== 0 && (r as any).tax_applicable !== false,
               ingredients: r.ingredients,
               instructions: r.instructions
             }));
@@ -1140,14 +1143,14 @@ export default function ChefRecipe() {
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-500 blur-2xl opacity-30 rounded-2xl"></div>
                     <img 
-                      src={customCuisines.find(c => c.id === selectedCuisine)?.icon} 
-                      alt={customCuisines.find(c => c.id === selectedCuisine)?.name}
+                      src={customCuisines.find(c => c.name === selectedCuisine)?.icon} 
+                      alt={customCuisines.find(c => c.name === selectedCuisine)?.name}
                       className="relative w-24 h-24 rounded-2xl object-cover shadow-xl"
                     />
                   </div>
                   <div>
                     <h2 className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600">
-                      {customCuisines.find(c => c.id === selectedCuisine)?.name} Cuisine
+                      {customCuisines.find(c => c.name === selectedCuisine)?.name} Cuisine
                     </h2>
                     <p className="text-gray-600 mt-2 flex items-center gap-2">
                       <span className="inline-block w-2 h-2 bg-indigo-500 rounded-full"></span>
@@ -1183,38 +1186,61 @@ export default function ChefRecipe() {
 
       {/* Recipe Modal */}
       {selectedRecipe && (
-        <RecipeModal
-          recipe={selectedRecipe}
-          inventory={inventory}
+        <AddRecipePage
+          isOpen={!!selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
-          onUpdate={async () => {
-            // Refresh recipes and inventory
-            const [recipesResponse, inventoryResponse] = await Promise.all([
-              recipeApi.getAll(),
-              inventoryApi.getAll()
-            ]);
-            if (recipesResponse.success && recipesResponse.data) {
-              const formattedRecipes = recipesResponse.data.map(r => ({
-                id: r.id?.toString() || '',
-                name: r.name,
-                description: r.description,
-                category: r.category,
-                cuisine: r.cuisine || '',
-                prepTime: r.prep_time,
-                cookTime: r.cook_time,
-                servings: r.servings,
-                difficulty: r.difficulty,
-                price: parseFloat(r.price as any) || 0,
-                ingredients: r.ingredients,
-                instructions: r.instructions
-              }));
-              setUserRecipes(formattedRecipes);
-            }
-            if (inventoryResponse.success && inventoryResponse.data) {
-              setInventory(inventoryResponse.data);
+          onAddRecipe={async (recipe) => {
+            // Update recipe via API
+            const cuisine = allCuisines.find(c => c.name === recipe.cuisine);
+            if (!cuisine) return;
+            try {
+              await recipeApi.update(Number(recipe.id), {
+                name: recipe.name,
+                category: recipe.category,
+                cuisine_id: Number(cuisine.id),
+                description: recipe.description,
+                prep_time: recipe.prepTime,
+                cook_time: recipe.cookTime,
+                servings: recipe.servings,
+                difficulty: recipe.difficulty,
+                price: recipe.price || 0,
+                tax_applicable: recipe.taxApplicable !== false,
+                ingredients: recipe.ingredients.map((ing: any) => ({
+                  name: ing.name,
+                  quantity: String(ing.quantity),
+                  unit: ing.unit || ''
+                })),
+                instructions: recipe.instructions,
+              });
+              toast.success('Recipe updated successfully!');
+              // Refresh recipes
+              const recipesResponse = await recipeApi.getAll();
+              if (recipesResponse.success && recipesResponse.data) {
+                const formattedRecipes = recipesResponse.data.map(r => ({
+                  id: r.id?.toString() || '',
+                  name: r.name,
+                  description: r.description,
+                  category: r.category,
+                  cuisine: r.cuisine || '',
+                  prepTime: r.prep_time,
+                  cookTime: r.cook_time,
+                  servings: r.servings,
+                  difficulty: r.difficulty,
+                  price: parseFloat(r.price as any) || 0,
+                  taxApplicable: (r as any).tax_applicable !== 0 && (r as any).tax_applicable !== false,
+                  ingredients: r.ingredients,
+                  instructions: r.instructions
+                }));
+                setUserRecipes(formattedRecipes);
+              }
+              setSelectedRecipe(null);
+            } catch {
+              toast.error('Failed to update recipe');
             }
           }}
-          cuisines={allCuisines}
+          cuisines={allCuisines.map(c => c.name)}
+          subCuisines={subCuisines}
+          editRecipe={selectedRecipe}
         />
       )}
 

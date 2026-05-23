@@ -17,9 +17,10 @@ interface AddRecipePageProps {
   cuisines: string[];
   subCuisines?: Record<string, { id: string; name: string }[]>;
   preSelectedCuisine?: string;
+  editRecipe?: any;
 }
 
-export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisines, preSelectedCuisine }: AddRecipePageProps) {
+export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisines, preSelectedCuisine, editRecipe }: AddRecipePageProps) {
   const [recipeName, setRecipeName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedCuisine, setSelectedCuisine] = useState('');
@@ -56,11 +57,39 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
 
   // Set pre-selected cuisine when component opens
   useEffect(() => {
-    if (isOpen && preSelectedCuisine) {
+    if (isOpen && preSelectedCuisine && !editRecipe) {
       setSelectedCuisine(preSelectedCuisine);
       setSelectedSubCuisine('all');
     }
   }, [isOpen, preSelectedCuisine]);
+
+  // Pre-fill form when editing
+  useEffect(() => {
+    if (isOpen && editRecipe) {
+      setRecipeName(editRecipe.name || '');
+      setDescription(editRecipe.description || '');
+      setSelectedCuisine(editRecipe.cuisine || '');
+      setCategory(editRecipe.category || 'Main Course');
+      setPrepTime(editRecipe.prepTime || '');
+      setCookTime(editRecipe.cookTime || '');
+      setServings(editRecipe.servings || '');
+      setDifficulty(editRecipe.difficulty || 'Medium');
+      setPrice(String(editRecipe.price || ''));
+      setTaxApplicable(editRecipe.taxApplicable !== false);
+      setIngredients(
+        editRecipe.ingredients?.length > 0
+          ? editRecipe.ingredients.map((ing: any) => ({ name: ing.name || '', quantity: String(ing.quantity || ''), unit: ing.unit || '' }))
+          : [{ name: '', quantity: '', unit: '' }]
+      );
+      setInstructions(
+        editRecipe.instructions?.length > 0
+          ? editRecipe.instructions
+          : ['']
+      );
+    } else if (isOpen && !editRecipe) {
+      handleReset();
+    }
+  }, [isOpen, editRecipe]);
 
   const handleAddIngredient = () => {
     setIngredients([...ingredients, { name: '', quantity: '', unit: '' }]);
@@ -139,7 +168,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
     }
 
     const newRecipe = {
-      id: Date.now().toString(),
+      id: editRecipe?.id || Date.now().toString(),
       name: recipeName,
       description,
       cuisine: selectedCuisine,
@@ -196,10 +225,10 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
               </div>
               <div>
                 <h2 className="text-3xl font-bold text-white flex items-center gap-2">
-                  Create New Recipe
+                  {editRecipe ? 'Edit Recipe' : 'Create New Recipe'}
                   <Sparkles className="w-6 h-6" />
                 </h2>
-                <p className="text-white/90 text-sm mt-1">Share your culinary masterpiece with the world</p>
+                <p className="text-white/90 text-sm mt-1">{editRecipe ? 'Update your recipe details' : 'Share your culinary masterpiece with the world'}</p>
               </div>
             </div>
             <button
@@ -602,7 +631,7 @@ export function AddRecipePage({ isOpen, onClose, onAddRecipe, cuisines, subCuisi
               className="flex-1 px-8 py-4 bg-gradient-to-r from-purple-600 via-pink-500 to-orange-500 hover:from-purple-700 hover:via-pink-600 hover:to-orange-600 text-white font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all text-lg flex items-center justify-center gap-2 group"
             >
               <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              Create Recipe
+              {editRecipe ? 'Update Recipe' : 'Create Recipe'}
             </button>
             <button
               type="button"
