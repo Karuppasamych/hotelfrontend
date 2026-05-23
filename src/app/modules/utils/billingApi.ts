@@ -6,10 +6,11 @@ export interface BillRequest {
   orderType: 'dine-in' | 'parcel';
   tableNumber?: string;
   numberOfPersons?: string;
-  orders: { name: string; price: number; quantity: number }[];
+  orders: { name: string; price: number; quantity: number; category?: string; taxApplicable?: boolean }[];
   paymentMethod: 'cash' | 'card' | 'upi';
   transactionId?: string;
   amountPaid: number;
+  initiatedBy?: string;
 }
 
 export interface BillResponse {

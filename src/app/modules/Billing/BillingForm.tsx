@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface BillingFormProps {
-  onAddItems: (items: { name: string; price: number; quantity: number; code?: string; taxApplicable?: boolean }[]) => void;
+  onAddItems: (items: { name: string; price: number; quantity: number; code?: string; taxApplicable?: boolean; category?: string }[]) => void;
   mobileNumber: string;
   customerName: string;
   orderType: 'dine-in' | 'parcel';
@@ -26,7 +26,7 @@ interface BillingFormProps {
   onSaveDraft?: (items?: { name: string; price: number; quantity: number; category: string; taxApplicable?: boolean }[]) => void;
   onDraftCreated?: (draft: DraftOrder) => void;
   currentSavedOrderId?: string | null;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean; excluded_categories?: string[] }[] };
 }
 
 interface StagedItem {
@@ -270,7 +270,11 @@ export function BillingForm({
   const stagedServiceCharge = applyServiceCharge ? taxableTotal * SERVICE_CHARGE_RATE : 0;
   const stagedCgst = taxableTotal * CGST_RATE;
   const stagedSgst = taxableTotal * SGST_RATE;
-  const stagedCustomTotal = enabledCustomCharges.reduce((sum, c) => sum + taxableTotal * c.percent / 100, 0);
+  const stagedCustomTotal = enabledCustomCharges.reduce((sum, c) => {
+    const excluded = c.excluded_categories || [];
+    const applicableTotal = stagedItems.filter(i => i.taxApplicable && !excluded.includes(i.category)).reduce((s, i) => s + i.price * i.quantity, 0);
+    return sum + applicableTotal * c.percent / 100;
+  }, 0);
   const stagedGrandTotal = stagedTotal + stagedServiceCharge + stagedCgst + stagedSgst + stagedCustomTotal;
 
   return (
@@ -666,12 +670,16 @@ export function BillingForm({
               <span>{`SGST (${(SGST_RATE * 100).toFixed(1)}%)`}</span>
               <span className="font-medium">{stagedSgst.toFixed(2)}</span>
             </div>
-            {enabledCustomCharges.map(c => (
-              <div key={c.id} className="flex justify-between text-sm text-gray-500">
-                <span>{c.name} ({c.percent}%)</span>
-                <span className="font-medium">{(stagedTotal * c.percent / 100).toFixed(2)}</span>
-              </div>
-            ))}
+            {enabledCustomCharges.map(c => {
+              const excluded = c.excluded_categories || [];
+              const applicableTotal = stagedItems.filter(i => i.taxApplicable && !excluded.includes(i.category)).reduce((s, i) => s + i.price * i.quantity, 0);
+              return (
+                <div key={c.id} className="flex justify-between text-sm text-gray-500">
+                  <span>{c.name} ({c.percent}%)</span>
+                  <span className="font-medium">{(applicableTotal * c.percent / 100).toFixed(2)}</span>
+                </div>
+              );
+            })}
             <div className="flex justify-between text-gray-900 pt-2 border-t-2 border-orange-300 text-lg">
               <span className="font-bold">Estimated Total</span>
               <span className="font-bold text-orange-600">{stagedGrandTotal.toFixed(2)}</span>
@@ -711,6 +719,7 @@ export function BillingForm({
                       quantity: item.quantity,
                       code: item.code,
                       taxApplicable: item.taxApplicable,
+                      category: item.category,
                     }));
                     onAddItems(itemsToAdd);
                     setKotItems([...stagedItems]);

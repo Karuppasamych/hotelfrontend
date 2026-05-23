@@ -108,7 +108,7 @@ export function BillingDashboard() {
       sessionStorage.removeItem('activeOrderId');
     }
   }, [currentSavedOrderId]);
-  const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, serviceChargeParcelExempt: true, cgstPercent: 2.5, sgstPercent: 2.5, customCharges: [] as { id: string; name: string; percent: number; enabled: boolean }[] });
+  const [billingSettings, setBillingSettings] = useState({ serviceChargeEnabled: true, serviceChargePercent: 5, serviceChargeParcelExempt: true, cgstPercent: 2.5, sgstPercent: 2.5, customCharges: [] as { id: string; name: string; percent: number; enabled: boolean; excluded_categories?: string[] }[] });
 
   // Fetch billing settings on mount
   useEffect(() => {
@@ -177,7 +177,7 @@ export function BillingDashboard() {
     setClubPrompt(null);
   };
 
-  const addItemsToBill = (items: { name: string; price: number; quantity: number; code?: string; taxApplicable?: boolean }[]) => {
+  const addItemsToBill = (items: { name: string; price: number; quantity: number; code?: string; taxApplicable?: boolean; category?: string }[]) => {
     setOrders(prev => {
       const updated = [...prev];
       for (const item of items) {
@@ -190,7 +190,7 @@ export function BillingDashboard() {
             name: item.name,
             price: item.price,
             quantity: item.quantity,
-            category: 'General',
+            category: item.category || 'General',
             taxApplicable: item.taxApplicable !== false,
           });
         }
@@ -250,7 +250,7 @@ export function BillingDashboard() {
       orderType,
       tableNumber: tableNumber || undefined,
       numberOfPersons: numberOfPersons || undefined,
-      orders: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, taxApplicable: o.taxApplicable !== false })),
+      orders: orders.map(o => ({ name: o.name, price: o.price, quantity: o.quantity, category: o.category, taxApplicable: o.taxApplicable !== false })),
       paymentMethod: payment.method,
       transactionId: payment.transactionId,
       amountPaid: payment.amountPaid,

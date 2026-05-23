@@ -17,7 +17,7 @@ interface OrderSummaryProps {
   orderType?: string;
   sentToKitchen?: boolean;
   onItemCancelled?: () => void;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; serviceChargeParcelExempt?: boolean; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean; excluded_categories?: string[] }[] };
 }
 
 
@@ -55,7 +55,11 @@ export function OrderSummary({
   const serviceCharge = applyServiceCharge ? taxableSubtotal * SERVICE_CHARGE_RATE : 0;
   const cgst = taxableSubtotal * CGST_RATE;
   const sgst = taxableSubtotal * SGST_RATE;
-  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + taxableSubtotal * c.percent / 100, 0);
+  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => {
+    const excluded = c.excluded_categories || [];
+    const applicableTotal = orders.filter(i => i.taxApplicable !== false && !excluded.includes(i.category || '')).reduce((s, i) => s + i.price * i.quantity, 0);
+    return sum + applicableTotal * c.percent / 100;
+  }, 0);
   const total = subtotal + serviceCharge + cgst + sgst + customChargesTotal;
 
   const handleCancelItem = async () => {
@@ -187,12 +191,16 @@ export function OrderSummary({
               <span>{`SGST (${(SGST_RATE * 100).toFixed(1)}%)`}</span>
               <span className="font-medium">{`\u20B9${sgst.toFixed(2)}`}</span>
             </div>
-            {enabledCustomCharges.map(c => (
-              <div key={c.id} className="flex justify-between text-gray-600">
-                <span>{`${c.name} (${c.percent}%)`}</span>
-                <span className="font-medium">{`\u20B9${(taxableSubtotal * c.percent / 100).toFixed(2)}`}</span>
-              </div>
-            ))}
+            {enabledCustomCharges.map(c => {
+              const excluded = c.excluded_categories || [];
+              const applicableTotal = orders.filter(i => i.taxApplicable !== false && !excluded.includes(i.category || '')).reduce((s, i) => s + i.price * i.quantity, 0);
+              return (
+                <div key={c.id} className="flex justify-between text-gray-600">
+                  <span>{`${c.name} (${c.percent}%)`}</span>
+                  <span className="font-medium">{`\u20B9${(applicableTotal * c.percent / 100).toFixed(2)}`}</span>
+                </div>
+              );
+            })}
             <div className="flex justify-between text-gray-900 pt-3 border-t-2 border-orange-500 text-xl">
               <span className="font-bold">Total Amount</span>
               <span className="font-bold text-orange-600">{`\u20B9${total.toFixed(2)}`}</span>

@@ -5,6 +5,7 @@ export interface CustomCharge {
   name: string;
   percent: number;
   enabled: boolean;
+  excluded_categories?: string[];
 }
 
 export interface AdminSettings {

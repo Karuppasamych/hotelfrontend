@@ -137,6 +137,7 @@ export default function Admin() {
       name: newChargeName.trim(),
       percent: parseFloat(newChargePercent),
       enabled: true,
+      excluded_categories: [],
     };
     setCustomCharges(prev => [...prev, newCharge]);
     setNewChargeName('');
@@ -150,6 +151,17 @@ export default function Admin() {
 
   const updateCustomChargePercent = (id: string, percent: string) => {
     setCustomCharges(prev => prev.map(c => c.id === id ? { ...c, percent: parseFloat(percent) || 0 } : c));
+  };
+
+  const toggleExcludedCategory = (chargeId: string, categoryName: string) => {
+    setCustomCharges(prev => prev.map(c => {
+      if (c.id !== chargeId) return c;
+      const excluded = c.excluded_categories || [];
+      const updated = excluded.includes(categoryName)
+        ? excluded.filter(cat => cat !== categoryName)
+        : [...excluded, categoryName];
+      return { ...c, excluded_categories: updated };
+    }));
   };
 
   const removeCustomCharge = (id: string) => {
@@ -333,15 +345,34 @@ export default function Admin() {
                     </div>
                   </div>
                   {charge.enabled && (
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm font-medium text-gray-700 w-24">Percentage</label>
-                      <div className="relative flex-1 max-w-[200px]">
-                        <input type="number" step="0.1" min="0" max="100" value={charge.percent}
-                          onChange={(e) => updateCustomChargePercent(charge.id, e.target.value)}
-                          className="no-spinner w-full px-4 py-2.5 pr-10 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-lg font-bold text-center" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold pointer-events-none">%</span>
+                    <>
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-gray-700 w-24">Percentage</label>
+                        <div className="relative flex-1 max-w-[200px]">
+                          <input type="number" step="0.1" min="0" max="100" value={charge.percent}
+                            onChange={(e) => updateCustomChargePercent(charge.id, e.target.value)}
+                            className="no-spinner w-full px-4 py-2.5 pr-10 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-lg font-bold text-center" />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold pointer-events-none">%</span>
+                        </div>
                       </div>
-                    </div>
+                      {/* Excluded Categories */}
+                      {inventoryCategories.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-gray-600 mb-2">Exclude categories (charge won't apply to these):</p>
+                          <div className="flex flex-wrap gap-2">
+                            {inventoryCategories.map(cat => {
+                              const isExcluded = (charge.excluded_categories || []).includes(cat.name);
+                              return (
+                                <button key={cat.id} type="button" onClick={() => toggleExcludedCategory(charge.id, cat.name)}
+                                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${isExcluded ? 'bg-red-100 text-red-700 border-red-300' : 'bg-gray-100 text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+                                  {isExcluded && <span className="mr-1">✕</span>}{cat.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                   {!charge.enabled && <p className="text-sm text-gray-500 font-medium">{charge.name} is disabled</p>}
                 </div>

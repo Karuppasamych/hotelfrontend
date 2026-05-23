@@ -11,7 +11,7 @@ interface ReceiptProps {
   paymentDetails: { method: string; transactionId?: string; amountPaid?: number };
   billNumber: string;
   onNewOrder: () => void;
-  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean }[] };
+  billingSettings?: { serviceChargeEnabled: boolean; serviceChargePercent: number; cgstPercent: number; sgstPercent: number; customCharges?: { id: string; name: string; percent: number; enabled: boolean; excluded_categories?: string[] }[] };
 }
 
 export function Receipt({ orders, customerName, mobileNumber, orderType, tableNumber, numberOfPersons, paymentDetails, billNumber, onNewOrder, billingSettings }: ReceiptProps) {
@@ -26,7 +26,11 @@ export function Receipt({ orders, customerName, mobileNumber, orderType, tableNu
   const serviceCharge = SERVICE_CHARGE_ENABLED ? taxableSubtotal * SERVICE_CHARGE_RATE : 0;
   const cgst = taxableSubtotal * CGST_RATE;
   const sgst = taxableSubtotal * SGST_RATE;
-  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => sum + taxableSubtotal * c.percent / 100, 0);
+  const customChargesTotal = enabledCustomCharges.reduce((sum, c) => {
+    const excluded = (c as any).excluded_categories || [];
+    const applicableTotal = orders.filter(i => i.taxApplicable !== false && !excluded.includes((i as any).category || '')).reduce((s, i) => s + i.price * i.quantity, 0);
+    return sum + applicableTotal * c.percent / 100;
+  }, 0);
   const total = subtotal + serviceCharge + cgst + sgst + customChargesTotal;
   const now = new Date();
 
@@ -133,12 +137,16 @@ export function Receipt({ orders, customerName, mobileNumber, orderType, tableNu
               <span>{`SGST @ ${(SGST_RATE * 100).toFixed(1)}%`}</span>
               <span>{`\u20B9${sgst.toFixed(2)}`}</span>
             </div>
-            {enabledCustomCharges.map(c => (
-              <div key={c.id} className="flex justify-between text-slate-600">
-                <span>{`${c.name} @ ${c.percent}%`}</span>
-                <span>{`\u20B9${(taxableSubtotal * c.percent / 100).toFixed(2)}`}</span>
-              </div>
-            ))}
+            {enabledCustomCharges.map(c => {
+              const excluded = (c as any).excluded_categories || [];
+              const applicableTotal = orders.filter(i => i.taxApplicable !== false && !excluded.includes((i as any).category || '')).reduce((s, i) => s + i.price * i.quantity, 0);
+              return (
+                <div key={c.id} className="flex justify-between text-slate-600">
+                  <span>{`${c.name} @ ${c.percent}%`}</span>
+                  <span>{`\u20B9${(applicableTotal * c.percent / 100).toFixed(2)}`}</span>
+                </div>
+              );
+            })}
             <div className="flex justify-between text-slate-900 pt-3 border-t-2 border-indigo-500 text-xl">
               <span className="font-bold">Grand Total</span>
               <span className="font-bold text-indigo-600">{`\u20B9${total.toFixed(2)}`}</span>
