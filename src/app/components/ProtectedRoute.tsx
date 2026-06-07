@@ -4,8 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { adminApi } from '../modules/utils/adminApi';
 
 const DEFAULT_ACCESS: Record<string, string[]> = {
-  admin: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'users', 'admin'],
-  manager: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen'],
+  admin: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'users', 'admin', 'manager_todo'],
+  manager: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'manager_todo'],
   stock_manager: ['inventory', 'purchases'],
   staff: ['billing', 'orders', 'kitchen'],
   kitchen_staff: ['recipes', 'calculator', 'kitchen'],

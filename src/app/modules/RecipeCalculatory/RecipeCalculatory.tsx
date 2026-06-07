@@ -11,6 +11,7 @@ import { Dish, Ingredient } from '../RecipeCalculatory/mockData';
 import { recipeApi } from '../utils/recipeApi';
 import { inventoryApi } from '../utils/inventoryApi';
 import { confirmedMenuApi } from '../utils/confirmedMenuApi';
+import { managerTodoApi } from '../utils/managerTodoApi';
 import { ConfirmCookModal } from '../../components/ConfirmCookModal';
 
 import { toast } from 'sonner';
@@ -82,6 +83,26 @@ export default function RecipeCalculatory() {
         setSelectedDishes([]);
         setActiveDishId(null);
         setShowConfirmCookModal(false);
+
+        // Push ingredients to Manager ToDo
+        try {
+          const todoItems: { ingredient_name: string; ingredient_id?: number; quantity: number; unit: string; dish_name: string }[] = [];
+          for (const { dish, servings } of selectedDishes) {
+            for (const ing of dish.ingredients) {
+              const invItem = inventory.find(i => String(i.id) === String(ing.ingredientId));
+              todoItems.push({
+                ingredient_name: invItem?.name || (ing as any).ingredientName || 'Unknown',
+                ingredient_id: invItem ? Number(invItem.id) : undefined,
+                quantity: ing.amount * servings / (parseInt(dish.servings) || 1),
+                unit: (ing as any).unit || invItem?.unit || 'g',
+                dish_name: dish.name,
+              });
+            }
+          }
+          if (todoItems.length > 0) {
+            await managerTodoApi.addFromMenu({ date: selectedDate, items: todoItems });
+          }
+        } catch { /* silent - don't block confirm flow */ }
         
         const mealLabel = data.is_addon ? 'Add-on (All Time)' : data.meal_time.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
         toast.success('Menu Confirmed!', {

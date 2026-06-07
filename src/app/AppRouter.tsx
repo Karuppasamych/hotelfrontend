@@ -14,6 +14,7 @@ import { BillingDashboard } from './modules/Billing/BillingDashboard';
 import OrderHistory from './modules/OrderHistory/OrderHistory';
 import Kitchen from './modules/Kitchen/Kitchen';
 import Admin from './modules/Admin/Admin';
+import ManagerTodo from './modules/ManagerTodo/ManagerTodo';
 import { Toaster } from 'sonner';
 
 export default function AppRouter() {
@@ -35,6 +36,7 @@ export default function AppRouter() {
             <Route path="/orders" element={<ProtectedRoute menuKey="orders"><OrderHistory /></ProtectedRoute>} />
             <Route path="/kitchen" element={<ProtectedRoute menuKey="kitchen"><Kitchen /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute menuKey="admin"><Admin /></ProtectedRoute>} />
+            <Route path="/manager-todo" element={<ProtectedRoute menuKey="manager_todo"><ManagerTodo /></ProtectedRoute>} />
           </Routes>
         </Router>
       </AuthProvider>

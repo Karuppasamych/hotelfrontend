@@ -10,7 +10,8 @@ import {
   ShoppingCart,
   History,
   UtensilsCrossed,
-  Settings 
+  Settings,
+  ClipboardCheck 
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { adminApi } from '../modules/utils/adminApi';
@@ -26,11 +27,12 @@ const ALL_NAV_ITEMS = [
   { path: '/kitchen', key: 'kitchen', label: 'Kitchen', icon: UtensilsCrossed },
   { path: '/users', key: 'users', label: 'Users', icon: Users },
   { path: '/admin', key: 'admin', label: 'Admin', icon: Settings },
+  { path: '/manager-todo', key: 'manager_todo', label: 'Manager ToDo', icon: ClipboardCheck },
 ];
 
 const DEFAULT_ACCESS: Record<string, string[]> = {
-  admin: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'users', 'admin'],
-  manager: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen'],
+  admin: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'users', 'admin', 'manager_todo'],
+  manager: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'manager_todo'],
   stock_manager: ['inventory', 'purchases'],
   staff: ['billing', 'orders', 'kitchen'],
   kitchen_staff: ['recipes', 'calculator', 'kitchen'],

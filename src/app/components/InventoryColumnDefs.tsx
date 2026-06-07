@@ -121,7 +121,19 @@ export const createInventoryColumnDefs = (
       cellStyle: { textAlign: 'center' },
       sortable: true,
       filter: false,
-      // filter: 'agNumberColumnFilter'
+    },
+    {
+      headerName: 'Prepared Stock',
+      field: 'prepared_stock',
+      width: 140,
+      type: 'numericColumn',
+      cellStyle: { textAlign: 'center' },
+      sortable: true,
+      filter: false,
+      valueFormatter: (params: any) => {
+        const val = typeof params.value === 'string' ? parseFloat(params.value) : params.value;
+        return (val || 0).toString();
+      }
     },
     {
       headerName: 'Unit',

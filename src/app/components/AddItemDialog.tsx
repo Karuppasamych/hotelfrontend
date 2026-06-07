@@ -28,6 +28,7 @@ export function AddItemDialog({
     name: '',
     category: 'Vegetables',
     quantity_available: '',
+    prepared_stock: '',
     unit: 'kg',
     price: '',
     minimum_stock: '',
@@ -69,6 +70,7 @@ export function AddItemDialog({
         name: editItem?.name,
         category: editItem?.category,
         quantity_available: editItem?.quantity_available?.toString(),
+        prepared_stock: editItem?.prepared_stock?.toString() || '0',
         unit: editItem?.unit,
         price: editItem?.price?.toString(),
         minimum_stock: editItem?.minimum_stock?.toString(),
@@ -82,6 +84,7 @@ export function AddItemDialog({
           name: '',
           category: 'Vegetables',
           quantity_available: '',
+          prepared_stock: '',
           unit: 'kg',
           price: '',
           minimum_stock: '',
@@ -92,6 +95,7 @@ export function AddItemDialog({
           name: '',
           category: 'Vegetables',
           quantity_available: '',
+          prepared_stock: '',
           unit: 'kg',
           price: '',
           minimum_stock: '',
@@ -108,6 +112,7 @@ export function AddItemDialog({
       name: formData.name,
       category: formData.category,
       quantity_available: parseFloat(formData.quantity_available),
+      prepared_stock: parseFloat(formData.prepared_stock) || 0,
       unit: formData.unit,
       price: parseFloat(formData.price),
       minimum_stock: parseFloat(formData.minimum_stock),
@@ -245,6 +250,25 @@ export function AddItemDialog({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Prepared Stock
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={formData.prepared_stock}
+                  onChange={(e) =>
+                    setFormData({ ...formData, prepared_stock: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Unit *
                 </label>
                 <select
@@ -262,24 +286,23 @@ export function AddItemDialog({
                   ))}
                 </select>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Price per Unit (₹) 
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) =>
-                  setFormData({ ...formData, price: e.target.value })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0.00"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Price per Unit (₹)
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) =>
+                    setFormData({ ...formData, price: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
 
             <div>

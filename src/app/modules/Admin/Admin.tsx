@@ -35,10 +35,11 @@ const MENUS = [
   { key: 'kitchen', label: 'Kitchen', icon: UtensilsCrossed },
   { key: 'users', label: 'Users', icon: Users },
   { key: 'admin', label: 'Admin', icon: Settings },
+  { key: 'manager_todo', label: 'Manager ToDo', icon: Settings },
 ];
 
 const DEFAULT_ACCESS: Record<string, string[]> = {
-  admin: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'users', 'admin'],
+  admin: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen', 'users', 'admin', 'manager_todo'],
   manager: ['dashboard', 'inventory', 'recipes', 'calculator', 'billing', 'purchases', 'orders', 'kitchen'],
   stock_manager: ['inventory', 'purchases'],
   staff: ['billing', 'orders', 'kitchen'],

@@ -46,4 +46,9 @@ export const inventoryApi = {
   search: (query: string): Promise<ApiResponse<InventoryItem[]>> => {
     return apiClient.get<InventoryItem[]>(`/inventory/search?q=${encodeURIComponent(query)}`);
   },
+
+  // Deduct stock - reduces from prepared_stock first, then available
+  deductStock: (id: string, quantity: number): Promise<ApiResponse<InventoryItem>> => {
+    return apiClient.post<InventoryItem>(`/inventory/${id}/deduct`, { quantity });
+  },
 };
